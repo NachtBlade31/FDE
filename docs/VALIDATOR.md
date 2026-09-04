@@ -51,4 +51,15 @@ Each review returns one of:
 
 | # | Date | Phase reviewed | Verdict | Summary |
 |---|---|---|---|---|
-| 1 | 2026-09-04 | Phase 0 — Design specification | _in review_ | Initial design review before any code is written |
+| 1 | 2026-09-04 | Phase 0 — Design specification | **BLOCKED** | All 15 quantitative claims verified correct. Blocked on: D1 safety gate probabilistic not deterministic (~3 expected governance failures on the hidden set against a zero threshold); §2.4 fairness baseline false on validation (−33pt, p=0.017); §2.3 right conclusion via wrong reasoning, ignored the Build Spec §04 three-outcome reading; A8 reconciliation formula fails on correct runs; effort log and PRD v1 absent from a plan deferring all workbooks past the build |
+| 2 | 2026-09-04 | Phase 0 — remediation | _awaiting re-review_ | All 8 clearing conditions addressed. Counter-claims independently re-verified against the raw JSON before editing (validation fluency gap, 326/500 ceiling, the two-different-87s conflation, urgency inversion, repeat-contact unmeasurability) — all confirmed |
+
+## Carried into Phase 1 (re-checked there)
+
+- **F5** urgency consumer — addressed in D2, verify it is actually wired at build time
+- **F7** throughput budget — numbers must be stated before the Day 5 gate run
+- **F9** validation-set discipline — checkpoint run count and dates must be logged
+- **F10** incident procedure, R-05/R-07/R-08 — due Day 8
+- **F11** report section mapping — added to §9.1, verify against the finished report
+- **F12** fallback-class constraint on cutting intent classes
+- **D1 marker vocabulary** — recall and false-positive rate unvalidated until measured on dev
