@@ -112,10 +112,17 @@ targets at once.
 
 **We reject that reading by design choice, not by arithmetic.** Every guardrail in §3.2
 routes to "block **and** escalate", because a blocked response still leaves a customer
-waiting for an answer that a human must now write. Treating "blocked" as a third terminal
-state would let the system meet its escalation target by failing silently, which is exactly
-the accounting trick the brief warns against. Blocked is therefore a subset of escalated and
-the third bucket is empty by construction.
+waiting for an answer that a human must now write. Blocked is therefore a subset of
+escalated and the third bucket is empty by construction.
+
+What that third bucket would cost is worth pricing, because it is the whole argument.
+Meeting the 30% escalation target under the three-outcome reading requires **at least 24 of
+the hidden 120 tickets to terminate with no answer sent and no human assigned** — and
+neither the brief nor the Evaluation Framework specifies what happens to them. Twenty-four
+silently abandoned customers is not a better outcome than a missed target; it is the
+accounting trick the brief warns against, and it would be invisible in every reported figure.
+Note also that §5 reports `blocked_by_guardrails` as its own count regardless, so a reader
+can recompute the rates under either taxonomy — the choice is auditable, not convenient.
 
 **Second, the real ceiling.** Given that choice, maximum *defensible* automation is:
 
@@ -202,16 +209,39 @@ must never be**. The governance threshold is **zero**. Describing this as a dete
 gate would be describing a hope, which is precisely what the Governance Framework warns
 against.
 
-Therefore **two layers, OR-ed together, either of which escalates**:
+Therefore **three layers, OR-ed together, any of which escalates**:
 
-1. **Classifier deny-list** — predicted intent in the forbidden set.
+1. **Classifier deny-list** — predicted intent (top-1) in the forbidden set.
 2. **Intent-agnostic lexical pre-screen** — high-precision marker tokens matched against the
-   raw ticket text, independent of any model output. This layer still fires when
-   classification fails.
+   raw ticket text, independent of any model output. Fires when classification fails.
+3. **Alternatives-aware abstention** — escalate if any deny-list intent appears anywhere in
+   the classifier's top-k alternatives above a low floor, regardless of top-1.
 
-Neither layer can be disabled by configuration. **Deny-list recall is reported as a named
-governance metric in its own right** — overall classification precision would hide exactly
-the failure that matters here — together with an honest residual false-negative rate.
+The three are independent by construction: layer 1 reads the top-1 label, layer 2 reads
+surface tokens, layer 3 reads the *distribution*. Layer 3 costs nothing extra — D3 already
+requires recording alternatives, and `alternatives` is already in the Governance Framework's
+minimum record schema — and it fires precisely on the co-failure case that defeats layers 1
+and 2 together: a misclassified ticket using none of the marker vocabulary, where the
+classifier was nonetheless uncertain. No layer can be disabled by configuration.
+
+**A fourth control is structural rather than added.** D2's grounding conjunction means a
+deny-list ticket must also clear the relevance floor before it can be auto-answered, and
+most cannot:
+
+| Deny-list intent | dev n | groundable | Structurally safe? |
+|---|---|---|---|
+| `feature_request` | 20 | **0** | Yes — cannot ground by construction |
+| `unclear_request` | 15 | **0** | Yes — cannot ground by construction |
+| `security_incident` | 26 | 14 | **Partly — real residual** |
+| `compliance_request` | 26 | 17 | **Partly — real residual** |
+| **Total** | **87** | **31 (35.6%)** | **56 structurally protected** |
+
+So the exposure is **not** the ~3 tickets a naive calculation gives. It is
+`120 × 17.5% × 35.6% × 15% ≈ 1.1 tickets`, confined entirely to `security_incident` and
+`compliance_request`. **Deny-list recall is reported for those two intents specifically**,
+never as a four-class aggregate — an aggregate is diluted by the 56 structurally-safe
+tickets and would understate the risk exactly where it is real. The residual false-negative
+rate is stated honestly rather than rounded to zero.
 
 *To validate in Phase 1:* the marker-token vocabulary and its recall/false-positive
 trade-off must be measured on dev before being trusted. It is tuned for recall, since a
@@ -360,12 +390,37 @@ Produced by the harness automatically, never by hand (A10).
 Every figure has an operational definition fixed *before* the run, so no metric can be
 quietly redefined once its value is known.
 
+**Tier 0 — Volume (Build Spec §04, required)**
+
+Every ticket terminates in exactly one of three states, and all rates derive from this
+enum — so the arithmetic is unambiguous and nothing can be double-counted:
+
+| Terminal state | Meaning |
+|---|---|
+| `auto_responded` | Answer sent to the customer |
+| `escalated_direct` | Routed to a human without a guardrail firing |
+| `escalated_after_block` | A guardrail blocked the draft; routed to a human |
+
+The four counts Build Spec §04 requires are then emitted explicitly:
+
+```
+processed             = auto_responded + escalated_direct + escalated_after_block
+answered_automatically = auto_responded
+escalated              = escalated_direct + escalated_after_block
+blocked_by_guardrails  = escalated_after_block          (reported separately, and reconciling)
+```
+
+**Blocked is reported as its own figure even though it is counted inside `escalated`.** §2.3
+argues that blocked responses belong inside the escalation rate; emitting the separate count
+anyway is what makes that choice *auditable* rather than merely convenient. A reader can
+recompute the rates under either taxonomy from the numbers given.
+
 **Tier 1 — Business**
 
 | Figure | Exact definition |
 |---|---|
-| First contact resolution | `auto_respond AND not blocked` ÷ tickets processed. Reported beside routing accuracy, since a confidently wrong auto-answer also counts here |
-| Escalation rate | `1 − FCR`. Blocked responses count as escalated (see §2.3) |
+| First contact resolution | `auto_responded ÷ processed`, derived from the Tier 0 enum. Reported beside routing accuracy, since a confidently wrong auto-answer also counts here |
+| Escalation rate | `1 − FCR`, i.e. `(escalated_direct + escalated_after_block) ÷ processed` (see §2.3) |
 | Time to first reply | System processing latency, arrival to response emitted. **Not** wall-clock: the schema has no `replied_at` field, so the Evaluation Framework's sample code cannot be run as written. The 8–12 hour baseline is Marcus's stated figure, not derivable from the data (median `resolution_time_minutes` is 214) |
 | Repeat contacts | **Not measurable. Reported as such, with evidence.** Same-customer / same-intent within 7 days yields **2 pairs across 500 dev tickets** and 1 across 80 validation. A single pass over independent tickets cannot produce this metric; claiming it would be fabrication |
 | Satisfaction proxy | Rubric-scored sample; sample size, rubric and scorer stated |
@@ -550,10 +605,25 @@ like it. The compressed timeline is stated plainly in the report's reflection se
 > documentation passage, and it must never auto-answer a security, compliance, feature
 > request or unclear ticket.
 
-Enforced by: the grounding guardrail (blocks unsupported claims), citation re-resolution
-(blocks unresolvable references), and the deterministic deny-list at routing (independent
-of any confidence score). The most likely residual harm is a *correctly cited but
-misapplied* passage — a retrieved article that is genuinely relevant to the symptom but
-wrong for that customer's configuration. Grounding checks cannot catch that, which is why
-the fairness audit segments by tier and why we would not deploy without a human review
-sample running continuously in production.
+**Enforced by four controls, three of them independent of the classifier:**
+
+1. The **grounding guardrail** — blocks claims unsupported by a retrieved passage.
+2. **Citation re-resolution** — blocks references that do not resolve to real corpus text.
+3. The **three-layer deny-list** of D1 — predicted intent, an intent-agnostic lexical
+   pre-screen, and alternatives-aware abstention.
+4. The **grounding conjunction of D2**, which structurally protects 56 of the 87 deny-list
+   tickets regardless of classifier behaviour, because they have no retrievable passage at
+   all.
+
+**This is deliberately not described as deterministic.** Control 3's first layer keys on a
+*predicted* intent, and prediction can fail. The honest statement is that the residual
+exposure is confined to `security_incident` and `compliance_request` — the only two
+deny-list intents that can ground — and is estimated at roughly **1 ticket in 120**. It is
+reported as deny-list recall on those two intents specifically, never as an aggregate,
+because an aggregate is diluted by the 56 structurally-safe tickets and would understate the
+risk precisely where it is real.
+
+**The most likely residual harm** is a *correctly cited but misapplied* passage — an article
+genuinely relevant to the symptom but wrong for that customer's configuration. Grounding
+checks cannot catch that by construction, which is why the fairness audit segments by tier
+and why we would not deploy without a continuous human review sample in production.
