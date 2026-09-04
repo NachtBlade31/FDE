@@ -1,0 +1,51 @@
+# CloudServe Intelligent Support System — pinned dependencies
+#
+# NOTE ON DEVIATION FROM THE CAPSTONE PACK
+# The pack's 06_Configuration/requirements.txt cannot be installed. It pins
+# langchain-openai==0.0.7 (which requires openai>=1.10) against openai==1.0.0,
+# and pip returns ResolutionImpossible. It also pins sentence-transformers==2.2.2,
+# which fails at import against modern huggingface_hub. Following it literally
+# fails at acceptance criterion A1. This file is the verified replacement; every
+# pin below was resolved together in a clean virtual environment on Python 3.11.
+#
+# Embeddings note: we deliberately do NOT install sentence-transformers or torch.
+# chromadb ships onnxruntime and its built-in embedding function is
+# all-MiniLM-L6-v2 — the exact model the Project Brief specifies — so we get the
+# required model without a ~2.5 GB torch dependency. This keeps the clean-checkout
+# install small and fast, which directly serves A1.
+
+# Orchestration
+langchain==0.3.30
+langgraph==0.6.7
+
+# Model providers — both supported, selected by the PROVIDER env var.
+# Groq and OpenRouter both have free tiers sufficient for this project.
+langchain-groq==0.3.8
+langchain-openai==0.3.35
+
+# Vector store and retrieval
+langchain-chroma==0.2.6
+chromadb==1.1.0
+
+# API surface
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+
+# Configuration and validation
+pydantic==2.11.9
+pydantic-settings==2.11.0
+python-dotenv==1.1.1
+
+# Persistence — the decision log
+SQLAlchemy==2.0.44
+
+# Metrics and resilience
+prometheus-client==0.23.1
+tenacity==9.1.4
+
+# Evaluation
+scikit-learn==1.7.2
+
+# Tests
+pytest==8.4.2
+pytest-cov==7.0.0

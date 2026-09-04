@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloudserve-support"
+version = "0.1.0"
+description = "Retrieval-grounded triage and drafting system for CloudServe Solutions support"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["src", "evaluation"]
+
+# A12: "Tests run with a single documented command and pass."
+# That command is `pytest`. Everything it needs is configured here rather than
+# passed as flags, so the documented command and the run command are the same.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "-q",
+    "--strict-markers",
+    "--cov=src",
+    "--cov=evaluation",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=xml:coverage.xml",
+]
+markers = [
+    "slow: needs the full dataset or a live model provider",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src", "evaluation"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+]
