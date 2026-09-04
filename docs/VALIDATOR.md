@@ -54,6 +54,8 @@ Each review returns one of:
 | 1 | 2026-09-04 | Phase 0 — Design specification | **BLOCKED** | All 15 quantitative claims verified correct. Blocked on: D1 safety gate probabilistic not deterministic (~3 expected governance failures on the hidden set against a zero threshold); §2.4 fairness baseline false on validation (−33pt, p=0.017); §2.3 right conclusion via wrong reasoning, ignored the Build Spec §04 three-outcome reading; A8 reconciliation formula fails on correct runs; effort log and PRD v1 absent from a plan deferring all workbooks past the build |
 | 2 | 2026-09-04 | Phase 0 — remediation | **CLEARED WITH CONDITIONS** | All 8 clearing conditions genuinely met; F5 and F9 addressed early. Day 1 may begin. Four conditions carried: §11 declaration still calls the deny-list "deterministic", contradicting the rewritten D1 (fix immediately — two sentences, and it is the statement an assessor reads first); §5 omits the Build Spec §04 Volume group, which is what makes the blocked ⊆ escalated choice auditable; D1's "~3 tickets" overstates the residual ~3× because D2's grounding conjunction already screens it; alternatives-aware abstention recommended as the third D1 control |
 
+| 3 | 2026-09-04 | Day 1 — models, ingest, decision log, config | **CLEARED WITH CONDITIONS** | Verification reproduced independently: `pytest` in the project venv gives 72 passed, 98% (302 stmts, 6 miss, 32 branch, 2 partial). Torch removal confirmed in `requirements.txt`. 11 commits in logical units; PRD v1 with 25 FRs traced to 15 evidence items. Quality is high — TDD throughout, governance invariants frozen as real-data tests, identity reconciliation implemented correctly. Six conditions below, three of them substantive: `.env.example` untracked (A1 risk, needs the user), `volume_counts()` counts records not tickets, and fairness segments degrade silently into the reference segment. All are Day-1 files: cheap now, expensive after Day 5 builds on them |
+
 ## Carried into Phase 1 (re-checked there)
 
 - **F5** urgency consumer — addressed in D2, verify it is actually wired at build time
@@ -84,6 +86,40 @@ All four applied to the spec before Day 1 code, not deferred.
   groundable fraction. Spec states 56.
 - **C4** — alternatives-aware abstention added as D1 layer 3, with the independence argument
   (top-1 label / surface tokens / distribution). ✅
+
+## Conditions from review 3 — Day 1 (fix at the top of Day 2)
+
+- **D1-C1 `.env.example` is untracked** — OPEN ITEM, needs the user, not the coordinator.
+  A permission rule in this environment blocks git operations naming the file; the coordinator
+  correctly refused to work around it and the validator could not read it either, so its
+  contents are **unverified**. It is a required Submission Guide deliverable and Build Spec §06
+  step 4 sets configuration from it. Untracked means a clean checkout does not have it, which
+  fails A1 at step 4. Not a defect in the work; still fatal if it ships this way.
+- **D1-C2 `volume_counts()` counts records, not tickets.** Demonstrated: two tickets with a
+  stray second terminal record report `processed: 3`, and one ticket is counted in two terminal
+  states. `reconcile()` passes anyway — it compares id sets only. Build Spec §06 step 9 opens
+  the metrics report and the decision log and reconciles them against each other, so this is
+  the exact check the grader runs. Enforce one terminal record per ticket and derive
+  `processed` from distinct ticket ids.
+- **D1-C3 fairness segments degrade into the reference segment silently.** `CustomerTier`
+  falls back to `STANDARD` and `LanguageFluency` to `FLUENT` — both *aliases* of real members,
+  so a defaulted ticket is indistinguishable from a genuine one. `Channel` and `CustomerRegion`
+  do it correctly with a distinct `UNKNOWN`. Defaults flow into the majority segment
+  (standard 50.6%, fluent 76.0%), which is where §2.4's pre-registered baseline is computed.
+  Give tier, fluency and urgency an `UNKNOWN` member and report it as its own segment.
+- **D1-C4 negative invariants can pass vacuously.** `test_no_deny_list_ticket_is_ever_labelled_auto_respond`
+  builds an empty offender list if `labels` fails to parse. Assert the deny-list population is
+  non-empty (87 on dev) so the test cannot pass on an empty set.
+- **D1-C5 freeze the C3 premise as a test.** `feature_request` and `unclear_request` are
+  0% `answerable_from_docs` (0/20 and 0/15 dev; 0/3 and 0/6 val). That fact is what makes 56 of
+  the 87 deny-list tickets structurally protected by D2's grounding conjunction, and it is
+  load-bearing for D1's residual estimate and §11. If it ever changes, the governance argument
+  changes with it.
+- **D1-C6 preflight the provider** — see review-3 answer (c). Fail loudly at start when a key
+  is present but rejected, and when no key is present unless an explicit opt-in is set; degrade
+  only on mid-run failure, which is what A11 actually asks for. The metrics report must carry a
+  prominent `degraded_run` flag plus attempted/succeeded call counts, so a 100%-escalation run
+  can never be mistaken for a confident one.
 
 ## Conditions from review 2 (fix in Phase 1)
 

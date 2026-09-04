@@ -121,15 +121,22 @@ def test_unusual_characters_survive_normalisation():
     assert "認証" in ticket.search_text
 
 
-def test_missing_optional_customer_fields_fall_back_to_defaults():
+def test_missing_fairness_segment_fields_become_unknown_not_the_majority_segment():
+    """A defaulted ticket must never be indistinguishable from a genuine one.
+
+    customer_tier and language_fluency are fairness-audit segments. Silently
+    coercing them to `standard`/`fluent` would move tickets into the majority
+    segment (50.6% and 76.0% of dev respectively), which is exactly where the
+    pre-registered baseline of design section 2.4 is computed.
+    """
     raw = _raw()
     for key in ("customer_tier", "customer_region", "language_fluency", "customer_name"):
         del raw[key]
 
     ticket = normalise_ticket(raw)
 
-    assert ticket.customer_tier is CustomerTier.STANDARD
-    assert ticket.language_fluency is LanguageFluency.FLUENT
+    assert ticket.customer_tier is CustomerTier.UNKNOWN
+    assert ticket.language_fluency is LanguageFluency.UNKNOWN
 
 
 def test_unknown_channel_falls_back_rather_than_raising():
@@ -139,10 +146,62 @@ def test_unknown_channel_falls_back_rather_than_raising():
     assert ticket.channel is Channel.UNKNOWN
 
 
-def test_unknown_tier_falls_back_to_standard():
+def test_unrecognised_tier_becomes_unknown_rather_than_a_real_segment():
     ticket = normalise_ticket(_raw(customer_tier="platinum"))
 
-    assert ticket.customer_tier is CustomerTier.STANDARD
+    assert ticket.customer_tier is CustomerTier.UNKNOWN
+
+
+def test_unrecognised_fluency_becomes_unknown_rather_than_fluent():
+    ticket = normalise_ticket(_raw(language_fluency="partial"))
+
+    assert ticket.language_fluency is LanguageFluency.UNKNOWN
+
+
+# --- degradation is recorded, so coercion is auditable after ingest ----------
+
+
+def test_a_clean_ticket_records_no_degradation():
+    ticket = normalise_ticket(_raw())
+
+    assert ticket.degraded_fields == ()
+
+
+def test_an_unrecognised_segment_value_is_recorded_as_degraded():
+    """Without this residue the coercion is unrecoverable, and a widened or
+    narrowed fairness gap cannot be told apart from silent segment migration."""
+    ticket = normalise_ticket(_raw(customer_tier="platinum", language_fluency="partial"))
+
+    assert "customer_tier" in ticket.degraded_fields
+    assert "language_fluency" in ticket.degraded_fields
+
+
+def test_an_unrecognised_channel_is_recorded_as_degraded():
+    ticket = normalise_ticket(_raw(channel="carrier_pigeon"))
+
+    assert "channel" in ticket.degraded_fields
+
+
+def test_a_malformed_timestamp_is_recorded_as_degraded():
+    ticket = normalise_ticket(_raw(received_at="not-a-timestamp"))
+
+    assert "received_at" in ticket.degraded_fields
+
+
+def test_a_missing_field_is_recorded_as_degraded():
+    raw = _raw()
+    del raw["customer_tier"]
+
+    ticket = normalise_ticket(raw)
+
+    assert "customer_tier" in ticket.degraded_fields
+
+
+def test_degradation_of_one_field_does_not_implicate_another():
+    ticket = normalise_ticket(_raw(customer_tier="platinum"))
+
+    assert "customer_tier" in ticket.degraded_fields
+    assert "customer_region" not in ticket.degraded_fields
 
 
 # --- ticket_id is the one field we cannot invent -----------------------------

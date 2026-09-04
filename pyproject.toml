@@ -17,14 +17,11 @@ packages = ["src", "evaluation"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = [
-    "-q",
-    "--strict-markers",
-    "--cov=src",
-    "--cov=evaluation",
-    "--cov-report=term-missing:skip-covered",
-    "--cov-report=xml:coverage.xml",
-]
+# Coverage flags deliberately live in the CI invocation, not here: with them in
+# addopts the documented A12 command hard-fails with "unrecognized arguments" if
+# pytest-cov is absent, which looks like a broken repository rather than a
+# missing optional dependency.
+addopts = ["-q", "--strict-markers"]
 markers = [
     "slow: needs the full dataset or a live model provider",
 ]

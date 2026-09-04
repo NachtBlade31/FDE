@@ -50,10 +50,19 @@ class Urgency(_FallbackStr):
 
 
 class CustomerTier(_FallbackStr):
+    """A fairness-audit segment, so its fallback must be distinguishable.
+
+    Falling back to STANDARD would move degraded tickets into the majority
+    segment (50.6% of the development set) — precisely where design section 2.4
+    computes its pre-registered baseline — and would make a defaulted ticket
+    indistinguishable from a genuine one.
+    """
+
     ENTERPRISE = "enterprise"
     BUSINESS = "business"
     STANDARD = "standard"
-    FALLBACK = "standard"
+    UNKNOWN = "unknown"
+    FALLBACK = "unknown"
 
 
 class CustomerRegion(_FallbackStr):
@@ -66,9 +75,12 @@ class CustomerRegion(_FallbackStr):
 
 
 class LanguageFluency(_FallbackStr):
+    """A fairness-audit segment. See CustomerTier for why UNKNOWN is distinct."""
+
     FLUENT = "fluent"
     NON_FLUENT = "non_fluent"
-    FALLBACK = "fluent"
+    UNKNOWN = "unknown"
+    FALLBACK = "unknown"
 
 
 class Stage(str, Enum):
@@ -134,12 +146,18 @@ class NormalisedTicket(BaseModel):
 
     customer_id: str = ""
     customer_name: str = ""
-    customer_tier: CustomerTier = CustomerTier.STANDARD
+    customer_tier: CustomerTier = CustomerTier.UNKNOWN
     customer_region: CustomerRegion = CustomerRegion.UNKNOWN
-    language_fluency: LanguageFluency = LanguageFluency.FLUENT
+    language_fluency: LanguageFluency = LanguageFluency.UNKNOWN
 
     labels: TicketLabels | None = None
     history: TicketHistory | None = None
+
+    # Fields that were absent or unrecognised and were coerced to a fallback.
+    # Without this residue the coercion is unrecoverable after ingest, and a
+    # widened or narrowed fairness gap could not be told apart from silent
+    # segment migration.
+    degraded_fields: tuple[str, ...] = ()
 
     @property
     def search_text(self) -> str:
@@ -150,6 +168,48 @@ class NormalisedTicket(BaseModel):
     def is_empty(self) -> bool:
         """True when there is no signal at all to classify or retrieve on."""
         return not self.search_text
+
+
+class RetrievedPassage(BaseModel):
+    """One passage returned by retrieval, carrying enough to be found again.
+
+    This type is what makes decision D7 enforceable. Citations are constructed
+    from these identifiers rather than emitted free-form by the model, and the
+    validator re-resolves each one against the store before a response is
+    released. A6 is checked by following a citation to the text it claims to
+    support, so `chunk_id` and the character offsets are not decoration — they
+    are how that check is performed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    doc_id: str = Field(min_length=1)
+    chunk_id: str = Field(min_length=1)
+    text: str = ""
+    title: str = ""
+    score: float = Field(ge=0.0, le=1.0)
+    char_start: int = Field(default=0, ge=0)
+    char_end: int = Field(default=0, ge=0)
+
+    @property
+    def citation(self) -> str:
+        """What appears in the answer text. Readers cite documents, not chunks."""
+        return self.doc_id
+
+
+class ClassificationAlternative(BaseModel):
+    """A class the classifier considered but did not choose.
+
+    Build Spec section 03 requires the alternatives to be recorded, not only the
+    chosen option. D1 layer 3 reads them: abstention fires when a deny-listed
+    intent appears anywhere in the distribution, regardless of the top-1 label,
+    which is the case where layers 1 and 2 can both miss.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    value: str = Field(min_length=1)
+    confidence: float = Field(ge=0.0, le=1.0)
 
 
 class DecisionRecord(BaseModel):
@@ -172,8 +232,8 @@ class DecisionRecord(BaseModel):
 
     prediction_value: str | None = None
     prediction_confidence: float | None = None
-    alternatives: list[dict[str, Any]] = Field(default_factory=list)
-    sources_used: list[dict[str, Any]] = Field(default_factory=list)
+    alternatives: list[ClassificationAlternative] = Field(default_factory=list)
+    sources_used: list[RetrievedPassage] = Field(default_factory=list)
     threshold_applied: float | None = None
 
     action_taken: str = ""

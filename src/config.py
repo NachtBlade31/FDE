@@ -24,8 +24,16 @@ from enum import Enum
 from pathlib import Path
 from typing import Mapping
 
-DEFAULT_CONFIDENCE_THRESHOLD = 0.80
-DEFAULT_RELEVANCE_FLOOR = 0.35
+# PLACEHOLDER VALUES — both must be derived, not chosen.
+#
+# Design decision D4: "The threshold is derived, not chosen", and the Project
+# Brief explicitly penalises "a threshold chosen because it looked reasonable
+# rather than because it was measured". These defaults exist only so the system
+# runs before the sweep has been done. Day 2 produces the relevance/recall curve
+# and Day 3 the precision/coverage curve and calibration table; both numbers are
+# replaced from those, and the chosen values are justified in the report.
+DEFAULT_CONFIDENCE_THRESHOLD = 0.80  # TODO(D4): replace from the Day 3 sweep
+DEFAULT_RELEVANCE_FLOOR = 0.35  # TODO(D4): replace from the Day 2 curve
 DEFAULT_KILL_SWITCH_PATH = Path("storage/KILL")
 
 # Values shipped in .env.example. Copying the template without editing it must

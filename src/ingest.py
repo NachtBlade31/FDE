@@ -74,19 +74,34 @@ def normalise_ticket(raw: Any) -> NormalisedTicket:
     if not ticket_id:
         raise IngestError("ticket_id is required: decisions cannot be reconciled without it")
 
+    degraded: list[str] = []
+
+    def enum_field(key: str, enum_cls: type) -> Any:
+        """Coerce an enum field, recording the coercion when it was not exact."""
+        raw_value = _text(raw, key)
+        member = enum_cls(raw_value)
+        if member.value != raw_value:
+            degraded.append(key)
+        return member
+
+    received_at = _parse_timestamp(raw.get("received_at"))
+    if received_at is None:
+        degraded.append("received_at")
+
     return NormalisedTicket(
         ticket_id=ticket_id,
-        channel=Channel(_text(raw, "channel")),
+        channel=enum_field("channel", Channel),
         subject=_text(raw, "subject"),
         original_body=_text(raw, "body"),
-        received_at=_parse_timestamp(raw.get("received_at")),
+        received_at=received_at,
         customer_id=_text(raw, "customer_id"),
         customer_name=_text(raw, "customer_name"),
-        customer_tier=CustomerTier(_text(raw, "customer_tier")),
-        customer_region=CustomerRegion(_text(raw, "customer_region")),
-        language_fluency=LanguageFluency(_text(raw, "language_fluency")),
+        customer_tier=enum_field("customer_tier", CustomerTier),
+        customer_region=enum_field("customer_region", CustomerRegion),
+        language_fluency=enum_field("language_fluency", LanguageFluency),
         labels=_submodel(raw, "labels", TicketLabels),
         history=_submodel(raw, "history", TicketHistory),
+        degraded_fields=tuple(degraded),
     )
 
 

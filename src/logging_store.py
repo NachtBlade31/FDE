@@ -33,11 +33,25 @@ from sqlalchemy import (
     select,
 )
 
+from pydantic import BaseModel
+
 from src.models import DecisionRecord, Stage, TerminalState
 
 
 class ReconciliationError(AssertionError):
     """Raised when logged decisions do not match the tickets processed."""
+
+
+class DuplicateTerminalStateError(ValueError):
+    """Raised when a ticket is given a second terminal state.
+
+    Every ticket ends in exactly one of auto_responded, escalated_direct or
+    escalated_after_block. Allowing two would make the metrics report disagree
+    with the decision log — one ticket counted in two outcomes, and `processed`
+    exceeding the number of tickets. Build Specification section 06 step 9 opens
+    both and reconciles them against each other, so this is enforced at write
+    time rather than checked afterwards.
+    """
 
 
 _METADATA = MetaData()
@@ -75,6 +89,11 @@ _JSON_COLUMNS: dict[str, Any] = {
 
 
 def _dump(value: Any) -> str:
+    """Serialise, unwrapping Pydantic models to plain dicts first."""
+    if isinstance(value, list):
+        value = [v.model_dump(mode="json") if isinstance(v, BaseModel) else v for v in value]
+    elif isinstance(value, BaseModel):
+        value = value.model_dump(mode="json")
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
@@ -100,6 +119,15 @@ class DecisionLog:
         """Append one decision. Returns its decision_id."""
         decision_id = record.decision_id or str(uuid.uuid4())
         created_at = record.created_at or datetime.now(timezone.utc)
+
+        if record.terminal_state is not None:
+            existing = self._terminal_state_for(record.ticket_id)
+            if existing is not None:
+                raise DuplicateTerminalStateError(
+                    f"ticket {record.ticket_id} already has terminal state "
+                    f"{existing.value!r}; refusing to record {record.terminal_state.value!r}. "
+                    "Every ticket ends in exactly one terminal state."
+                )
 
         values = {
             "decision_id": decision_id,
@@ -143,6 +171,27 @@ class DecisionLog:
         with self._engine.connect() as conn:
             return [self._to_record(row) for row in conn.execute(stmt)]
 
+    def _terminal_state_for(self, ticket_id: str) -> TerminalState | None:
+        stmt = (
+            select(decisions.c.terminal_state)
+            .where(decisions.c.ticket_id == ticket_id)
+            .where(decisions.c.terminal_state.isnot(None))
+            .limit(1)
+        )
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt).first()
+        return TerminalState(row[0]) if row else None
+
+    def terminated_ticket_ids(self) -> set[str]:
+        """Tickets that reached a terminal state."""
+        stmt = (
+            select(decisions.c.ticket_id)
+            .where(decisions.c.terminal_state.isnot(None))
+            .distinct()
+        )
+        with self._engine.connect() as conn:
+            return {row[0] for row in conn.execute(stmt)}
+
     def logged_ticket_ids(self) -> set[str]:
         stmt = select(decisions.c.ticket_id).distinct()
         with self._engine.connect() as conn:
@@ -150,19 +199,27 @@ class DecisionLog:
 
     # -- A8 reconciliation ---------------------------------------------------
 
-    def reconcile(self, processed_ticket_ids: Iterable[str]) -> None:
+    def reconcile(
+        self, processed_ticket_ids: Iterable[str], require_terminal: bool = False
+    ) -> None:
         """Assert the log covers exactly the tickets processed, both directions.
 
         Raises ReconciliationError naming every discrepancy, not only the first,
         so a gap can be diagnosed in one pass.
+
+        With `require_terminal`, also asserts that every ticket reached a
+        terminal state. A ticket logged at classification but never terminated
+        was dropped mid-pipeline, which A9 forbids: "every ticket produces either
+        a sent answer or a logged escalation. None are silently dropped."
         """
         processed = set(processed_ticket_ids)
         logged = self.logged_ticket_ids()
 
         missing = sorted(processed - logged)
         unexpected = sorted(logged - processed)
+        unterminated = sorted(processed - self.terminated_ticket_ids()) if require_terminal else []
 
-        if not missing and not unexpected:
+        if not missing and not unexpected and not unterminated:
             return
 
         problems = []
@@ -170,6 +227,8 @@ class DecisionLog:
             problems.append(f"processed but never logged: {', '.join(missing)}")
         if unexpected:
             problems.append(f"logged but not processed: {', '.join(unexpected)}")
+        if unterminated:
+            problems.append(f"logged but never reached a terminal state: {', '.join(unterminated)}")
 
         raise ReconciliationError(
             "decision log does not reconcile against tickets processed — " + "; ".join(problems)
@@ -199,7 +258,10 @@ class DecisionLog:
         blocked = counts.get(TerminalState.ESCALATED_AFTER_BLOCK, 0)
 
         return {
-            "processed": auto + direct + blocked,
+            # Distinct tickets, not terminal records. Write-time uniqueness makes
+            # these equal, and deriving it this way means the metrics report
+            # cannot silently disagree with the log even if that ever changes.
+            "processed": len(self.terminated_ticket_ids()),
             "answered_automatically": auto,
             "escalated": direct + blocked,
             "blocked_by_guardrails": blocked,

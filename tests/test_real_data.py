@@ -156,11 +156,13 @@ def test_no_deny_list_ticket_is_ever_labelled_auto_respond():
     """A governance invariant. Auto-answering any of these is a failure, not a loss."""
     tickets, _ = normalise_batch(_pack_tickets("development_tickets.json"))
 
-    offenders = [
-        t.ticket_id
-        for t in tickets
-        if t.labels and t.labels.must_not_auto_respond and t.labels.expected_route == "auto_respond"
-    ]
+    deny_listed = [t for t in tickets if t.labels and t.labels.must_not_auto_respond]
+
+    # Guard against a vacuous pass: if label parsing ever regressed, `offenders`
+    # would be empty and this test could never fail.
+    assert len(deny_listed) == 87
+
+    offenders = [t.ticket_id for t in deny_listed if t.labels.expected_route == "auto_respond"]
 
     assert offenders == []
 
@@ -216,3 +218,42 @@ def test_a_ticket_of_pure_whitespace_is_flagged_not_dropped():
 
     assert ticket.is_empty is True
     assert ticket.ticket_id == "HID-0001"
+
+
+def test_feature_request_and_unclear_request_can_never_ground():
+    """The empirical basis of the ~1.1 residual in design D1 and section 11.
+
+    D2's grounding conjunction requires a retrievable passage before anything can
+    be auto-answered. These two intents have none, on either split, so they are
+    structurally safe regardless of what the classifier does. Together with the
+    ungrounded security_incident and compliance_request tickets that is 56 of the
+    87 deny-list tickets protected by grounding alone.
+
+    If this ever changes, the governance argument in section 11 weakens and the
+    residual estimate must be recomputed.
+    """
+    tickets, _ = normalise_batch(_pack_tickets("development_tickets.json"))
+
+    for intent in ("feature_request", "unclear_request"):
+        population = [t for t in tickets if t.labels and t.labels.intent == intent]
+        assert population, f"no {intent} tickets found — the premise cannot be tested"
+        groundable = [t for t in population if t.labels.answerable_from_docs]
+        assert groundable == [], f"{intent} is no longer structurally ungroundable"
+
+
+def test_exactly_56_deny_list_tickets_are_structurally_protected_by_grounding():
+    """Quantifies the claim made in design D1 and section 11."""
+    tickets, _ = normalise_batch(_pack_tickets("development_tickets.json"))
+    deny_listed = [t for t in tickets if t.labels and t.labels.must_not_auto_respond]
+
+    ungroundable = [t for t in deny_listed if not t.labels.answerable_from_docs]
+
+    assert len(deny_listed) == 87
+    assert len(ungroundable) == 56
+
+
+def test_no_development_ticket_needs_a_degraded_field():
+    """The supplied data is clean; degradation should only fire on real anomalies."""
+    tickets, _ = normalise_batch(_pack_tickets("development_tickets.json"))
+
+    assert [t.ticket_id for t in tickets if t.degraded_fields] == []
