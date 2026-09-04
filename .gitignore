@@ -1,0 +1,10 @@
+.env
+.venv/
+storage/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.chroma/
