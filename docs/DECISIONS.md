@@ -476,12 +476,133 @@ is the difference between a fast failure and a slow, expensive one.
 
 ---
 
+## D-23 · The supplied data is templated, and we say so
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Accepted · **Measured**
+
+A spike returned a result too good to accept: a k-nearest-neighbour classifier
+over ticket embeddings scored **99.4% leave-one-out** against a brief targeting
+85%. A number that far above target is evidence about the data, not the model.
+
+Measured (`evaluation/results/2026-09-07-data-regularity.txt`):
+
+| | Development | Validation |
+|---|---|---|
+| distinct ticket bodies | 215 of 500 | 60 of 80 |
+| tickets duplicating another | **57.0%** | 25.0% |
+| token overlap, same intent vs different | **19×** | — |
+
+`rate_limit` has 13 tickets and 4 distinct openings; "too many request error. we"
+appears six times verbatim.
+
+**Consequence, stated in the report rather than quietly enjoyed:** any classifier
+scores implausibly well here. The hidden set comes from the same population, so
+the figure will hold there too — and still will not generalise to real CloudServe
+tickets. Reported precision describes performance on synthetic, templated data,
+and any claim beyond that is labelled an extrapolation.
+
+**Why we did not simply ship the kNN.** It would score ~99% and be memorising
+templates. The LLM classifier is what would work on real tickets, so it is the
+primary path; the finding is reported rather than exploited.
+
+> **Video line:** "A nearest-neighbour matcher gets 99.4% on this data. That is
+> not a good classifier, it is a warning: 57% of the ticket bodies are exact
+> duplicates of another ticket. I am reporting 89% from something that actually
+> reads the ticket, and telling you what that number does and does not mean."
+
+---
+
+## D-24 · Tokens per minute, not requests, is the binding constraint
+
+**Tag:** `SYSTEM` · **Date:** 2026-09-07 · **Status:** Accepted · **Measured**
+
+The first 100-ticket run scored **23% accuracy**. It was not a classifier problem:
+**222 provider calls, 131 retries, 75 fallbacks, degraded=True.** Reading the
+response headers gave the real limits:
+
+```
+x-ratelimit-limit-requests : 1000   (reset 1h39m)   931 remaining
+x-ratelimit-limit-tokens   : 8000   (reset 35s)    3275 remaining
+```
+
+**Requests were never the constraint; tokens per minute were.** At ~556 tokens a
+call that is roughly 14 calls per minute. Reacting only to 429s spends the
+allowance on retries that were always going to fail.
+
+The fix is proactive pacing: record the allowance from every response and wait
+for the window to reset before a call it cannot cover. Also honour the provider's
+`retry-after` hint over our own exponential schedule — it knows better than we do.
+
+| | before | after |
+|---|---|---|
+| provider calls for 100 tickets | 222 | **90** |
+| retries | 131 | **0** |
+| fallbacks | 75 | **0** |
+| accuracy | 23.0% | **89.0%** |
+| degraded | True | **False** |
+
+> **Video line:** "My first run scored 23%. The classifier was fine — I was being
+> rate limited and retrying into the limit. The fix was to read the headers the
+> provider was already sending me."
+
+---
+
+## D-25 · A reasoning model bills its thinking against your token budget
+
+**Tag:** `SYSTEM` · **Date:** 2026-09-07 · **Status:** Accepted · **Found live**
+
+`openai/gpt-oss-20b` returns a `reasoning` field alongside `content`, and the
+reasoning is charged to `max_tokens`. With `max_tokens=200`, harder tickets spent
+the entire budget thinking and returned **HTTP 200 with empty content**.
+
+Two fixes:
+
+1. **`reasoning_effort: "low"`** — reasoning tokens fall from 113 to 7 and total
+   tokens from 650 to 556. Saves 14% of the allowance *and* removes the
+   truncation. `max_tokens` raised to 500 for headroom.
+2. **An empty completion is a failure, not a success.** It was previously cached,
+   which turned one truncation into a permanent misclassification for that ticket.
+
+This is only findable by running against the real provider. A mock returning
+well-formed JSON would have passed every test.
+
+> **Video line:** "The model was returning HTTP 200 and an empty answer, because
+> it had spent its whole token budget thinking. My tests all passed — the mock
+> was too polite."
+
+---
+
+## D-26 · Layer 3 of the safety gate earned its place immediately
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-07 · **Status:** Confirmed
+
+Measured over 100 development tickets, deny-list recall by layer:
+
+| Intent | Layer 1 (top-1) | + Layer 3 (alternatives) |
+|---|---|---|
+| `compliance_request` | 4/4 | 4/4 |
+| `feature_request` | 3/3 | 3/3 |
+| `security_incident` | 4/4 | 4/4 |
+| `unclear_request` | **0/1** | **1/1** |
+
+One ticket was missed entirely by the top-1 label and caught by alternatives-aware
+abstention — the exact case layer 3 was added for. Deny-listed tickets missed by
+both classifier layers: **0**. The lexical pre-screen (layer 2) is a further
+independent control on top of that.
+
+> **Video line:** "The third layer was the validator's suggestion and I nearly
+> argued against it. On the first hundred tickets it caught one the main
+> classifier missed outright."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |
 |---|---|---|
 | ~~O-1~~ | ~~Chunking strategy~~ — resolved, see D-19 | ✅ Day 2 |
 | ~~O-2~~ | ~~Relevance floor~~ — resolved, see D-20 | ✅ Day 2 |
+| ~~O-5~~ | ~~Throughput budget~~ — 8000 TPM binding; 6.1 min/120 tickets for classification, see D-24 | ✅ Day 3 |
 | O-3 | Confidence threshold, from the precision/coverage curve | Day 3 |
 | O-4 | Marker-token vocabulary for D-04 layer 2, with measured recall | Day 3 |
 | O-5 | Throughput budget: calls/ticket, rate limits, wall-clock for 120 | Before Day 5 |

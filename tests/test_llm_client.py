@@ -339,3 +339,107 @@ def test_a_rate_limit_is_still_retried_after_that_change(client):
 
     assert client(transport).complete("sys", "user").ok is True
     assert len(transport.calls) == 2
+
+
+# --- proactive rate limiting (F7, A9) ----------------------------------------
+
+
+def test_rate_limit_headers_are_recorded_when_the_provider_sends_them(client):
+    """Groq's binding constraint is tokens per minute, not requests.
+
+    Measured 2026-09-07: x-ratelimit-limit-tokens 8000 with a ~35s reset, against
+    x-ratelimit-limit-requests 1000 per hour. Reacting only to 429s wastes the
+    allowance on retries; the headers let us pace before being throttled.
+    """
+    transport = RecordingTransport([("ok", {"remaining_tokens": 3275, "reset_tokens": 35.4})])
+
+    client(transport).complete("sys", "user")
+
+
+def test_the_client_waits_when_the_token_allowance_is_nearly_exhausted(client, tmp_path):
+    delays: list[float] = []
+    transport = RecordingTransport(
+        [
+            ("first", {"remaining_tokens": 50, "reset_tokens": 12.0}),
+            ("second", {"remaining_tokens": 7000, "reset_tokens": 60.0}),
+        ]
+    )
+    c = LLMClient(
+        _settings(),
+        transport=transport,
+        cache_path=tmp_path / "c",
+        sleep=delays.append,
+    )
+
+    c.complete("sys", "one")
+    assert delays == []  # nothing known before the first call
+
+    c.complete("sys", "two")
+    assert delays, "should have paced before the second call"
+    assert delays[0] == pytest.approx(12.0, abs=1.0)
+
+
+def test_no_wait_when_the_allowance_is_healthy(client, tmp_path):
+    delays: list[float] = []
+    transport = RecordingTransport(
+        [("first", {"remaining_tokens": 7000, "reset_tokens": 30.0}), "second"]
+    )
+    c = LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    )
+
+    c.complete("sys", "one")
+    c.complete("sys", "two")
+
+    assert delays == []
+
+
+def test_a_retry_after_hint_is_honoured_over_exponential_backoff(client, tmp_path):
+    """The provider knows how long it wants us to wait better than we do."""
+    delays: list[float] = []
+    err = ProviderRateLimited("429")
+    err.retry_after = 7.5
+    transport = RecordingTransport([err, "recovered"])
+
+    LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    ).complete("sys", "user")
+
+    assert delays == [pytest.approx(7.5)]
+
+
+def test_a_transport_returning_a_plain_string_still_works(client):
+    """Rate limit metadata is optional; not every provider supplies it."""
+    assert client(RecordingTransport(["plain"])).complete("sys", "user").text == "plain"
+
+
+# --- an empty completion is a failure, not a success --------------------------
+
+
+def test_an_empty_completion_is_treated_as_a_failure(client):
+    """Reasoning models can spend the whole token budget thinking.
+
+    Measured 2026-09-07: openai/gpt-oss-20b used 113 of its completion tokens on
+    reasoning before emitting any content. Where the budget runs out first the
+    API returns HTTP 200 with an empty content field. Treating that as success
+    caches an empty string forever and turns one truncation into a permanent
+    misclassification.
+    """
+    transport = RecordingTransport(["", "", "", ""])
+
+    result = client(transport).complete("sys", "user")
+
+    assert result.ok is False
+    assert "empty" in (result.error or "").lower()
+
+
+def test_an_empty_completion_is_never_cached(client):
+    transport = RecordingTransport(["", "", "", "proper answer"])
+    c = client(transport)
+
+    assert c.complete("sys", "user").ok is False
+    assert c.complete("sys", "user").text == "proper answer"
+
+
+def test_a_whitespace_only_completion_is_also_a_failure(client):
+    assert client(RecordingTransport(["   \n  "] * 4)).complete("sys", "user").ok is False

@@ -136,6 +136,7 @@ class Settings:
     database_url: str = "sqlite:///./storage/decisions.db"
     cache_path: Path = Path("storage/cache")
 
+    reasoning_effort: str = "low"
     request_timeout_seconds: int = 30
     max_retries: int = 3
     log_level: str = "INFO"
@@ -185,6 +186,7 @@ class Settings:
             chroma_path=Path(_clean(env, "CHROMA_PATH", "storage/chroma")),
             database_url=_clean(env, "DATABASE_URL", "sqlite:///./storage/decisions.db"),
             cache_path=Path(_clean(env, "CACHE_PATH", "storage/cache")),
+            reasoning_effort=_clean(env, "REASONING_EFFORT", "low"),
             request_timeout_seconds=int(_clean(env, "REQUEST_TIMEOUT_SECONDS", "30") or 30),
             max_retries=int(_clean(env, "MAX_RETRIES", "3") or 3),
             log_level=_clean(env, "LOG_LEVEL", "INFO") or "INFO",

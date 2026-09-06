@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -43,7 +44,13 @@ class ProviderTimeout(ProviderError):
 
 
 class ProviderRateLimited(ProviderError):
-    """Free-tier throttling. Expected, and handled with backoff."""
+    """Free-tier throttling. Expected, and handled with backoff.
+
+    Carries retry_after when the provider tells us how long to wait, which it
+    knows better than any backoff schedule we could guess.
+    """
+
+    retry_after: float | None = None
 
 
 class ProviderUnavailable(ProviderError):
@@ -87,6 +94,8 @@ class CallStats:
     cache_hits: int = 0
     retries: int = 0
     degraded: bool = False
+    paced_seconds: float = 0.0
+    paced_count: int = 0
 
 
 class _DiskCache:
@@ -117,6 +126,20 @@ class _DiskCache:
             pass
 
 
+_DURATION = re.compile(
+    r"(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?"
+)
+
+
+def _duration(raw):
+    """Parse the provider reset format, e.g. 1h39m21.6s or 35.437s."""
+    match = _DURATION.fullmatch(raw.strip())
+    if not match or not any(match.groups()):
+        return None
+    hours, minutes, seconds = (float(g) if g else 0.0 for g in match.groups())
+    return hours * 3600 + minutes * 60 + seconds
+
+
 def _default_transport(
     *, provider: Provider, api_key: str, base_url: str, timeout: int, **kwargs
 ) -> str:
@@ -138,6 +161,15 @@ def _default_transport(
         ],
     }
 
+    # Reasoning models bill their thinking against the completion budget.
+    # Measured 2026-09-07 on openai/gpt-oss-20b: reasoning tokens fall from
+    # 113 to 7 and total tokens from 650 to 556 with effort set low, which
+    # both saves allowance and removes the truncation that produced empty
+    # content. Omitted when blank so providers that reject the field work.
+    effort = kwargs.get("reasoning_effort")
+    if effort:
+        payload["reasoning_effort"] = effort
+
     try:
         response = httpx.post(
             url,
@@ -151,7 +183,14 @@ def _default_transport(
         raise ProviderUnavailable(str(exc)) from exc
 
     if response.status_code == 429:
-        raise ProviderRateLimited("rate limited by provider")
+        error = ProviderRateLimited("rate limited by provider")
+        hint = response.headers.get("retry-after")
+        if hint:
+            try:
+                error.retry_after = float(hint)
+            except ValueError:
+                error.retry_after = _duration(hint)
+        raise error
     if response.status_code >= 500:
         raise ProviderUnavailable(f"provider returned {response.status_code}")
     if response.status_code >= 400:
@@ -160,7 +199,21 @@ def _default_transport(
             f"provider returned {response.status_code}: {response.text[:200]}"
         )
 
-    return response.json()["choices"][0]["message"]["content"]
+    def header_number(name):
+        raw = response.headers.get(name)
+        if raw is None:
+            return None
+        try:
+            return float(raw)
+        except ValueError:
+            return _duration(raw)
+
+    text = response.json()["choices"][0]["message"]["content"]
+    return text, {
+        "remaining_tokens": header_number("x-ratelimit-remaining-tokens"),
+        "reset_tokens": header_number("x-ratelimit-reset-tokens"),
+        "remaining_requests": header_number("x-ratelimit-remaining-requests"),
+    }
 
 
 class LLMClient:
@@ -180,6 +233,9 @@ class LLMClient:
         self._cache = _DiskCache(cache_path or settings.cache_path)
         self._sleep = sleep or __import__("time").sleep
         self.stats = CallStats()
+        # Last known allowance, taken from the previous response headers.
+        self._remaining_tokens = None
+        self._reset_seconds = None
 
     # -- cache key ------------------------------------------------------------
 
@@ -197,6 +253,49 @@ class LLMClient:
             ensure_ascii=False,
         )
         return hashlib.sha256(signature.encode("utf-8")).hexdigest()
+
+    # -- rate limit pacing ----------------------------------------------------
+
+    # Below this many tokens remaining, wait for the window to reset rather
+    # than spend the remainder on calls that will be throttled anyway.
+    LOW_ALLOWANCE_TOKENS = 1500
+
+    def _record_limits(self, limits):
+        if not limits:
+            return
+        if limits.get("remaining_tokens") is not None:
+            self._remaining_tokens = float(limits["remaining_tokens"])
+        if limits.get("reset_tokens") is not None:
+            self._reset_seconds = float(limits["reset_tokens"])
+
+    def _pace(self, max_tokens):
+        """Wait before a call the remaining allowance cannot cover.
+
+        The binding constraint on this free tier is tokens per minute, not
+        requests: measured 2026-09-07 as 8000 TPM against 1000 requests per
+        hour. Reacting only to 429s spends the allowance on retries. An
+        earlier 100-ticket run made 222 calls with 131 retries and fell back
+        on 75 tickets. Pacing on the headers turns that into steady progress.
+        """
+        if self._remaining_tokens is None or self._reset_seconds is None:
+            return
+        if self._remaining_tokens >= max(self.LOW_ALLOWANCE_TOKENS, max_tokens * 2):
+            return
+
+        wait = self._reset_seconds
+        if wait > 0:
+            self.stats.paced_seconds += wait
+            self.stats.paced_count += 1
+            self._sleep(wait)
+        self._remaining_tokens = None
+        self._reset_seconds = None
+
+    def _backoff_for(self, exc, attempt):
+        """Prefer the provider hint over our own exponential schedule."""
+        hint = getattr(exc, "retry_after", None)
+        if hint:
+            return float(hint)
+        return self.BASE_BACKOFF_SECONDS * (2**attempt)
 
     # -- the one public call --------------------------------------------------
 
@@ -221,7 +320,10 @@ class LLMClient:
                 error="no api key configured; running retrieval-only",
             )
 
+        self._pace(max_tokens)
+
         last_error: str | None = None
+        last_exception: Exception | None = None
         attempts = 0
 
         for attempt in range(max(1, self.settings.max_retries)):
@@ -238,6 +340,7 @@ class LLMClient:
                     user=user,
                     temperature=0,
                     max_tokens=max_tokens,
+                    reasoning_effort=self.settings.reasoning_effort,
                 )
             except ProviderConfigError as exc:
                 # Not transient. Fail immediately rather than burning retries.
@@ -248,18 +351,30 @@ class LLMClient:
                 )
             except (ProviderRateLimited, ProviderTimeout, ProviderUnavailable) as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
+                last_exception = exc
             except Exception as exc:  # noqa: BLE001 - nothing may escape (A9)
                 last_error = f"{type(exc).__name__}: {exc}"
+                last_exception = exc
             else:
-                self.stats.succeeded += 1
-                self._cache.put(key, text)
-                return CompletionResult(text=text, ok=True, attempts=attempts)
+                if isinstance(text, tuple):
+                    text, limits = text
+                    self._record_limits(limits)
+                if not (text or "").strip():
+                    # HTTP 200 with no content. Reasoning models can spend
+                    # the whole completion budget thinking and emit nothing.
+                    # Caching that would make one truncation permanent.
+                    last_error = "provider returned an empty completion"
+                    last_exception = None
+                else:
+                    self.stats.succeeded += 1
+                    self._cache.put(key, text)
+                    return CompletionResult(text=text, ok=True, attempts=attempts)
 
             if attempts < max(1, self.settings.max_retries):
                 self.stats.retries += 1
-                # Exponential backoff. Free tiers throttle, and hammering a
-                # throttled endpoint is what turns a pause into a ban.
-                self._sleep(self.BASE_BACKOFF_SECONDS * (2**attempt))
+                # Free tiers throttle, and hammering a throttled endpoint is
+                # what turns a pause into a ban.
+                self._sleep(self._backoff_for(last_exception, attempt))
 
         self.stats.failed += 1
         self.stats.degraded = True

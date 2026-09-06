@@ -1,0 +1,99 @@
+
+======================================================================
+development_tickets.json  (n=500)
+======================================================================
+
+distinct ticket bodies        : 215 of 500
+bodies appearing more than once: 78
+tickets that duplicate another : 285 (57.0%)
+
+mean token Jaccard, same intent     : 0.322
+mean token Jaccard, different intent: 0.017
+ratio                                : 19.0x
+
+distinct 5-word openings per intent (a proxy for template count):
+  intent                    tickets  openings   ratio
+  account_access                 22         8    2.8x
+  api_key_issue                  18         3    6.0x
+  api_usage_question             24         4    6.0x
+  authentication_failure         20        10    2.0x
+  billing_query                  24         6    4.0x
+  compliance_request             26         3    8.7x
+  configuration_help             17         4    4.2x
+  data_export                    29         9    3.2x
+  data_residency                 29         3    9.7x
+  database_issue                 26        10    2.6x
+  deployment_failure             27         5    5.4x
+  feature_request                20         5    4.0x
+  integration_help               21         4    5.2x
+  onboarding                     22         6    3.7x
+  performance_degradation        23         4    5.8x
+  quota_or_overage               23         9    2.6x
+  rate_limit                     13         4    3.2x
+  rollback_request               28         8    3.5x
+  security_incident              26         5    5.2x
+  sso_configuration              26         4    6.5x
+  unclear_request                15         8    1.9x
+  webhook_issue                  21         6    3.5x
+  TOTAL                         500       128    3.9x
+
+======================================================================
+validation_tickets.json  (n=80)
+======================================================================
+
+distinct ticket bodies        : 60 of 80
+bodies appearing more than once: 14
+tickets that duplicate another : 20 (25.0%)
+
+mean token Jaccard, same intent     : 0.256
+mean token Jaccard, different intent: 0.016
+ratio                                : 15.6x
+
+distinct 5-word openings per intent (a proxy for template count):
+  intent                    tickets  openings   ratio
+  account_access                  4         3    1.3x
+  api_key_issue                   6         4    1.5x
+  api_usage_question              4         3    1.3x
+  authentication_failure          3         3    1.0x
+  billing_query                  10         4    2.5x
+  compliance_request              1         1    1.0x
+  configuration_help              3         2    1.5x
+  data_export                     1         1    1.0x
+  data_residency                  6         3    2.0x
+  database_issue                  1         1    1.0x
+  deployment_failure              5         5    1.0x
+  feature_request                 3         2    1.5x
+  integration_help                3         2    1.5x
+  onboarding                      4         2    2.0x
+  performance_degradation         3         2    1.5x
+  quota_or_overage                2         2    1.0x
+  rate_limit                      1         1    1.0x
+  rollback_request                6         4    1.5x
+  security_incident               4         3    1.3x
+  sso_configuration               1         1    1.0x
+  unclear_request                 6         4    1.5x
+  webhook_issue                   3         1    3.0x
+  TOTAL                          80        54    1.5x
+
+======================================================================
+WHAT THIS MEANS
+======================================================================
+
+The ticket corpus is generated from a small number of templates per intent, with
+surface variation. Same-intent tickets share an order of magnitude more
+vocabulary than different-intent tickets, and a large share of bodies are exact
+duplicates of another ticket.
+
+Consequences that must be stated in the report rather than quietly enjoyed:
+
+1. Any classifier will score implausibly well. A k-NN over embeddings reaches
+   99.4% leave-one-out, against a brief that targets 85%. That measures template
+   regularity, not classification capability.
+
+2. The hidden set is drawn from the same population, so the figure will hold
+   there too. It still does not generalise to real CloudServe tickets.
+
+3. Reported classification precision therefore describes performance on
+   synthetic, templated data. Any claim about real-world performance is an
+   extrapolation, and is labelled as one.
+
