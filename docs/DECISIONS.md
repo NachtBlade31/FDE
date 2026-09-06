@@ -596,6 +596,67 @@ independent control on top of that.
 
 ---
 
+## D-27 · The lexical pre-screen is curated, not derived (O-4, resolved)
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-07 · **Status:** Accepted · **Measured**
+
+Layer 2 of the D-04 safety gate. Two candidate vocabularies were measured.
+
+**Automatically derived** — tokens selected by frequency inside deny-list tickets
+versus outside, with 5-fold cross-validation so the vocabulary is never scored on
+the tickets that produced it:
+
+| | recall | FP rate |
+|---|---|---|
+| held-out (5-fold) | **90.8%** | 0.7% |
+| in-sample (derived and scored on all 500) | 95.4% | 0.0% |
+
+The in-sample figure is an upper bound, not an estimate. Reporting it would have
+overstated the control by 4.6 points. (An earlier suggested figure of 94.3%/0.0%
+was of this in-sample kind, and was not adopted.)
+
+**Hand-curated** — 58 terms chosen for what they *denote* rather than what they
+correlate with:
+
+| Intent | Curated recall |
+|---|---|
+| `security_incident` | **26/26 = 100%** |
+| `compliance_request` | **26/26 = 100%** |
+| `feature_request` | 12/20 = 60% |
+| `unclear_request` | **0/15 = 0%** |
+| overall | 73.6% (FP rate 4.8%) |
+
+**We chose the curated vocabulary, despite its worse headline number.** Three
+reasons:
+
+1. **It is 100% on the only two intents where residual risk exists.** D-04
+   establishes that `feature_request` and `unclear_request` can never ground
+   (0/20 and 0/15 answerable from docs), so D2's grounding conjunction protects
+   them structurally regardless of what layer 2 does. Layer 2's job is precisely
+   the two groundable intents, and it catches all of them.
+2. **The derived vocabulary is overfitted to templates.** It contains `another`,
+   `call`, `going`, `look`, `only`, `once`, `per`, `nobody`. Those correlate with
+   deny-list templates in this synthetic data (see D-23) and denote nothing. A
+   safety control that fires on the word "only" is not a control anyone can
+   defend, and it would not survive contact with real tickets.
+3. **A false positive costs one unnecessary escalation; a false negative is a
+   governance breach.** 4.8% — 20 tickets in 500 — is an acceptable price. That
+   asymmetry is why the vocabulary is tuned for recall on the intents that matter
+   rather than for overall accuracy.
+
+**`unclear_request` at 0% is not a defect.** Being unclear is not a vocabulary
+property. "Nothing is loading properly today. Can someone look into this?"
+contains no marker because there is nothing to mark. It is caught by layer 1
+(the classifier's own `unclear_request` prediction, which is the fallback class)
+and by grounding, and it can never be answered from documentation anyway.
+
+> **Video line:** "The automatic version scored higher — ninety-one per cent
+> against seventy-four. I shipped the lower one, because its misses are in the
+> two categories that physically cannot be auto-answered, and because I am not
+> willing to defend a security control that fires on the word 'only'."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |
@@ -604,6 +665,5 @@ independent control on top of that.
 | ~~O-2~~ | ~~Relevance floor~~ — resolved, see D-20 | ✅ Day 2 |
 | ~~O-5~~ | ~~Throughput budget~~ — 8000 TPM binding; 6.1 min/120 tickets for classification, see D-24 | ✅ Day 3 |
 | O-3 | Confidence threshold, from the precision/coverage curve | Day 3 |
-| O-4 | Marker-token vocabulary for D-04 layer 2, with measured recall | Day 3 |
-| O-5 | Throughput budget: calls/ticket, rate limits, wall-clock for 120 | Before Day 5 |
+| ~~O-4~~ | ~~Marker vocabulary~~ — resolved, see D-27 | ✅ Day 3 |
 | O-6 | Incident procedure, six steps with owner and duration | Day 8 |

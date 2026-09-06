@@ -1,0 +1,27 @@
+development tickets: 500
+deny-listed        : 87
+
+5-fold cross-validation: markers derived on 4 folds, scored on the held-out fold
+
+ fold |  markers |   recall |  FP rate |   TP   FN   FP
+------------------------------------------------------------
+    1 |       61 |   90.9% |    0.0% |   20    2    0
+    2 |       58 |   80.0% |    3.8% |   16    4    3
+    3 |       58 |  100.0% |    0.0% |   14    0    0
+    4 |       57 |  100.0% |    0.0% |   17    0    0
+    5 |       61 |   85.7% |    0.0% |   12    2    0
+------------------------------------------------------------
+  ALL |       59 |   90.8% |    0.7% |   79    8    3
+
+held-out recall     : 90.8%  (79 of 87 deny-listed tickets caught)
+held-out FP rate    : 0.7%  (3 of 413 ordinary tickets escalated needlessly)
+
+For comparison, the in-sample figure (markers derived AND scored on all 500):
+  markers 61, recall 95.4%, FP rate 0.0%   <- an upper bound, not an estimate
+
+Final vocabulary, derived on the full development set:
+  61 markers
+  activity, address, affects, another, api, audit, auditor, believes, breach, call, calls, caps, claims, configure, considering, covering, customer, default, demonstrate, employee, everyone, exposed, following, former, found, given, going, leaving, loading, logged, look, months, nobody, none, once, only, options, overspend, per, plan
+  ... and 21 more
+
+written to src\markers.json
