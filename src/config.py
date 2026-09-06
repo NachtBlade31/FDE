@@ -54,6 +54,18 @@ DEFAULT_CONFIDENCE_THRESHOLD = 0.80  # TODO(D4): replace from the Day 3 sweep
 DEFAULT_RELEVANCE_FLOOR = 0.40
 DEFAULT_KILL_SWITCH_PATH = Path("storage/KILL")
 
+# VERIFIED AGAINST THE LIVE PROVIDER 2026-09-04.
+#
+# The Setup Guide's suggested model (meta-llama/llama-3.1-8b-instruct) and the
+# Llama 3.3 family are no longer served by Groq's free tier — the models endpoint
+# returns 404 for them. Checked what the account can actually reach and chose
+# from that list. The brief is explicit that "a well-built system running on a
+# small free model will out-score a thin one running on an expensive one", so a
+# 20B model is a deliberate choice, not a limitation.
+#
+# Re-check with: python scripts/list_models.py
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+
 # Values shipped in .env.example. Copying the template without editing it must
 # not be mistaken for a working key.
 _PLACEHOLDERS = {
@@ -155,7 +167,7 @@ class Settings:
 
         if provider is Provider.GROQ:
             api_key = _clean(env, "GROQ_API_KEY")
-            model_name = _clean(env, "GROQ_MODEL", "llama-3.3-70b-versatile")
+            model_name = _clean(env, "GROQ_MODEL", DEFAULT_GROQ_MODEL)
             base_url = ""
         else:
             api_key = _clean(env, "OPENROUTER_API_KEY")

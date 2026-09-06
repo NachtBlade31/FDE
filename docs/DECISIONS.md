@@ -386,29 +386,46 @@ always likely to hurt. The point is that we measured it rather than asserting it
 | 0.45 | 85.4% | 21.0% |
 | 0.50 | 73.4% | 35.0% ← argmax of the combined score |
 
-**We chose 0.40 and deliberately rejected the naive optimum at 0.50.** A combined
-score of `(any-hit + rejected) / 2` peaks at 0.50, but taking that would trade 19
-points of retrieval hit rate for 20 points of rejection — and that trade is wrong
-here, for a reason worth stating.
+**We chose 0.40 and deliberately rejected the naive optimum at 0.50.** Three
+arguments, strongest first.
 
-**The finding: retrieval similarity is a weak signal for groundability.** Even at
-a floor of 0.60, only 70.6% of ungroundable tickets are rejected, by which point
-any-hit has collapsed to 33.9%. An ungroundable ticket does not look meaningfully
-less similar to the corpus than a groundable one — it is about the same topic; it
-simply has no article that answers it.
+**1. The argmax is an artifact of the metric, not of the data.** The `combined`
+column is an unweighted mean of any-hit (measured on 357 groundable tickets) and
+rejection (measured on 143 ungroundable). That silently weights each ungroundable
+ticket **2.5×** each groundable one. Weight by actual population instead:
 
-So rejecting ungroundable tickets is **not the relevance floor's job**. It belongs
-to the grounding guardrail, which checks whether the drafted claims are actually
-supported. The floor has a narrower job: keep irrelevant passages out of the
-generation prompt. 0.40 is the knee — past it, any-hit falls 7.3 points between
-0.40 and 0.45 for little gain.
+| floor | unweighted combined | population-weighted | tickets correct |
+|---|---|---|---|
+| 0.30 | 53.3% | **70.8%** | 354.0 |
+| 0.35 | 53.1% | 70.4% | 352.2 |
+| **0.40** | 53.7% | **70.4%** | 352.0 |
+| 0.45 | 53.2% | 67.0% | 334.9 |
+| 0.50 | **54.2%** ← argmax | **62.4%** | 312.1 |
 
-This also validates design decision D2: routing is a *conjunction*, not a single
-threshold. No one signal here is strong enough to carry the decision alone.
+Population-weighted, 0.50 is **8 points worse** than 0.40 and gets **40 fewer
+tickets right**. The argmax disappears entirely.
 
-> **Video line:** "The obvious thing is to pick the number that maximises your
-> score. That number was 0.50 and it would have been a mistake — it costs a fifth
-> of the retrieval hit rate to buy something the grounding check does better."
+**2. There is a real knee, and 0.40 is the last floor before it.** Marginal
+any-hit loss per 0.05 step: 0.5pt, 0.9pt, then **7.3pt** — an eight-fold
+acceleration at 0.45.
+
+**3. Division of labour.** Rejecting ungroundable tickets is not the floor's job.
+Even at 0.60 only 70.6% are rejected, with any-hit down to 33.9% — retrieval
+similarity is a weak signal for groundability, because an ungroundable ticket is
+about the *same topic*, it simply has no article answering it. Groundability
+belongs to the grounding guardrail. Under D2's conjunction a false accept is
+caught downstream, while a miss is terminal — so the asymmetry favours coverage.
+
+**What we do NOT claim.** 0.40 is not measurably better than 0.35: they are
+identical population-weighted (70.4% both), and the move costs 3.2 groundable
+tickets to buy 3.0 rejections. Anything in **0.30–0.40 is equivalent on this
+evidence**. 0.40 is defensible as the conservative end of a flat region that
+terminates in a cliff — not as an optimum.
+
+> **Video line:** "The obvious move is to take the number that maximises your
+> score. That was 0.50, and it would have been a mistake — the metric was
+> weighting a hundred and forty tickets as if they were three hundred and fifty."
+
 
 ---
 
@@ -428,6 +445,34 @@ rather than patching.
 > **Video line:** "Ines said there is no path between 'my deployment keeps dying'
 > and 'resolving container health check failures' in a keyword search. There
 > isn't. There is in an embedding, and it finds the right article 95% of the time."
+
+---
+
+## D-22 · The documented model no longer exists
+
+**Tag:** `SYSTEM` · **Date:** 2026-09-04 · **Status:** Accepted · **Found live**
+
+The Setup Guide's suggested `meta-llama/llama-3.1-8b-instruct`, and the whole
+Llama family, are no longer served by Groq's free tier — the API returns 404. We
+queried the models endpoint rather than trusting documentation, and chose
+`openai/gpt-oss-20b` from what the account can actually reach. Verified live:
+**1.03s** for a trivial completion, which is the first real datapoint against the
+p95 < 3s target.
+
+`scripts/list_models.py` exists so this can be re-checked rather than assumed
+next time. The brief is explicit that "a well-built system running on a small free
+model will out-score a thin one running on an expensive one", so a 20B model is a
+deliberate choice.
+
+**A bug this exposed:** the first 404 was retried three times with backoff, taking
+4.0s to report a failure that was certain on the first attempt. A missing model or
+a bad key is not transient. `ProviderConfigError` is now raised for 4xx other than
+429 and is never retried — 1 attempt, 0.49s. Over a 120-ticket unattended run that
+is the difference between a fast failure and a slow, expensive one.
+
+> **Video line:** "The setup guide names a model that no longer exists. Worth
+> checking what your provider actually serves rather than trusting a document
+> written six months ago."
 
 ---
 

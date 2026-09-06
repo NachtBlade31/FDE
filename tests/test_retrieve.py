@@ -161,6 +161,17 @@ def test_an_authentication_symptom_retrieves_an_authentication_article(retriever
     assert any(r.doc_id.startswith("DOC-AUTH") for r in results)
 
 
+def test_a_rate_limit_symptom_retrieves_an_api_article(retriever):
+    """A second structural case, from a different category.
+
+    Aggregate guards catch magnitude; structural guards catch meaning. Two cases
+    from different categories mean one lucky embedding cannot carry the claim.
+    """
+    results = retriever.search("getting 429 errors when calling your endpoints", top_k=5)
+
+    assert any(r.doc_id.startswith("DOC-API") for r in results)
+
+
 def test_a_billing_question_retrieves_a_billing_article(retriever):
     results = retriever.search("why is my invoice higher this month", top_k=5)
 
@@ -231,3 +242,87 @@ def test_retrieval_hit_rate_on_groundable_development_tickets(retriever):
     print(f"\nretrieval any-hit@3 on {len(tickets)} groundable dev tickets: {hit_rate:.1%}")
 
     assert hit_rate >= 0.60, f"any-hit@3 fell to {hit_rate:.1%}; AS-01 is in doubt"
+
+
+# --- D2-C1: the derived floor must be the shipped floor ----------------------
+
+
+def test_the_retriever_default_floor_equals_the_derived_configuration_value():
+    """D4 claims the threshold is derived, not chosen.
+
+    That claim only holds if the derived value is the one that actually runs.
+    Three copies of this number previously disagreed, so the graded run would
+    have used a floor the report did not defend.
+    """
+    import inspect
+
+    from src.config import DEFAULT_RELEVANCE_FLOOR
+
+    default = inspect.signature(Retriever.__init__).parameters["relevance_floor"].default
+
+    assert default == DEFAULT_RELEVANCE_FLOOR
+
+
+def test_a_retriever_built_without_a_floor_uses_the_derived_value(corpus):
+    from src.config import DEFAULT_RELEVANCE_FLOOR
+
+    assert Retriever(corpus).relevance_floor == DEFAULT_RELEVANCE_FLOOR
+
+
+# --- D2-C2: "nothing cleared the floor" vs "nothing was close" ----------------
+
+
+def test_search_detailed_reports_passages_that_fell_below_the_floor(corpus):
+    """An escalation must be able to say WHY nothing was usable.
+
+    The Governance Framework's minimum record carries sources_used with scores.
+    If sub-floor results are discarded inside search(), an escalation logs an
+    empty list and "the best match scored 0.38, just under the floor" becomes
+    unrecoverable at incident review.
+    """
+    strict = Retriever(corpus, relevance_floor=0.99)
+
+    result = strict.search_detailed("console says invalid credentials")
+
+    assert result.passages == []
+    assert result.rejected, "sub-floor candidates must be retained, not discarded"
+    assert result.top_score > 0.0
+
+
+def test_search_detailed_records_the_floor_that_was_applied(corpus):
+    result = Retriever(corpus, relevance_floor=0.42).search_detailed("deployment failing")
+
+    assert result.floor_applied == pytest.approx(0.42)
+
+
+def test_rejected_passages_are_never_merged_into_accepted_ones(corpus):
+    """D7 builds citations from retrieved chunk ids.
+
+    A sub-floor passage reachable from the citation path would be a latent A6
+    violation, so the two collections must stay separate.
+    """
+    strict = Retriever(corpus, relevance_floor=0.99)
+
+    result = strict.search_detailed("invoice higher than expected")
+
+    accepted_ids = {p.chunk_id for p in result.passages}
+    rejected_ids = {p.chunk_id for p in result.rejected}
+    assert accepted_ids & rejected_ids == set()
+
+
+def test_a_genuinely_empty_query_reports_no_top_score(corpus):
+    """Distinguishes 'nothing was close' from 'there was nothing to search for'."""
+    result = Retriever(corpus).search_detailed("   ")
+
+    assert result.passages == []
+    assert result.rejected == []
+    assert result.top_score == 0.0
+
+
+def test_search_remains_the_simple_accessor(retriever):
+    """search() stays the ergonomic path; search_detailed() is for the log."""
+    query = "my deployment keeps dying"
+
+    assert [p.chunk_id for p in retriever.search(query)] == [
+        p.chunk_id for p in retriever.search_detailed(query).passages
+    ]

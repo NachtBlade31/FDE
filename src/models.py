@@ -43,10 +43,18 @@ class Channel(_FallbackStr):
 
 
 class Urgency(_FallbackStr):
+    """A metrics segment and the escalation-payload priority, so its fallback
+    must be distinguishable.
+
+    Falling back to MEDIUM would hide degraded tickets in the largest bucket
+    (226/500) — the same defect corrected for CustomerTier and LanguageFluency.
+    """
+
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
-    FALLBACK = "medium"
+    UNKNOWN = "unknown"
+    FALLBACK = "unknown"
 
 
 class CustomerTier(_FallbackStr):

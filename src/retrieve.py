@@ -39,6 +39,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from src.config import DEFAULT_RELEVANCE_FLOOR
 from src.models import RetrievedPassage
 
 # A query with no alphanumeric content cannot be embedded meaningfully. Returning
@@ -181,6 +182,41 @@ class Corpus:
         return len(self.chunks)
 
 
+@dataclass(frozen=True)
+class RetrievalResult:
+    """What retrieval found, including what it rejected and why.
+
+    "Nothing cleared the floor" and "nothing was close" are different states, and
+    only one of them is diagnosable after the fact. Three things need the
+    difference:
+
+      - the decision log, whose minimum record carries sources_used with scores;
+        an escalation that logs an empty list cannot answer "why did this
+        escalate?" at incident review
+      - the escalation payload (D3), where "top match DOC-AUTH-002 at 0.38, below
+        the 0.40 floor" is actionable for an agent and "no documents" is not
+      - calibration, which cannot bin a threshold using only scores that cleared it
+
+    `rejected` is deliberately a separate field. D7 builds citations from
+    retrieved chunk ids, so a sub-floor passage reachable from the citation path
+    would be a latent A6 violation.
+    """
+
+    passages: list[RetrievedPassage]
+    rejected: list[RetrievedPassage]
+    top_score: float
+    floor_applied: float
+
+    @property
+    def has_passages(self) -> bool:
+        return bool(self.passages)
+
+    @property
+    def was_close(self) -> bool:
+        """True when something was retrieved but fell short of the floor."""
+        return not self.passages and bool(self.rejected)
+
+
 class Retriever:
     """Semantic search over the corpus, with a relevance floor.
 
@@ -195,7 +231,7 @@ class Retriever:
     def __init__(
         self,
         corpus: Corpus,
-        relevance_floor: float = 0.35,
+        relevance_floor: float = DEFAULT_RELEVANCE_FLOOR,
         collection_name: str = "cloudserve-docs",
     ) -> None:
         self.corpus = corpus
@@ -238,9 +274,17 @@ class Retriever:
         return f"{chunk.title}\n\n{chunk.text}"
 
     def search(self, query: str, top_k: int | None = None) -> list[RetrievedPassage]:
-        """Return ranked passages above the relevance floor, or an empty list."""
+        """Ranked passages above the relevance floor, or an empty list.
+
+        The ergonomic path. Use `search_detailed` where the rejected candidates
+        matter — the decision log, the escalation payload, calibration.
+        """
+        return self.search_detailed(query, top_k).passages
+
+    def search_detailed(self, query: str, top_k: int | None = None) -> RetrievalResult:
+        """Ranked passages, plus what fell below the floor and the floor applied."""
         if not query or not _ALNUM.search(query):
-            return []
+            return RetrievalResult([], [], 0.0, self.relevance_floor)
 
         k = top_k or self.DEFAULT_TOP_K
         result = self._collection.query(
@@ -251,24 +295,31 @@ class Retriever:
         ids = result.get("ids", [[]])[0]
         distances = result.get("distances", [[]])[0]
 
-        passages = []
+        accepted: list[RetrievedPassage] = []
+        rejected: list[RetrievedPassage] = []
+        top_score = 0.0
+
         for chunk_id, distance in zip(ids, distances):
             chunk = self.corpus.resolve(chunk_id)
             if chunk is None:  # pragma: no cover - index and corpus cannot diverge
                 continue
             score = max(0.0, min(1.0, 1.0 - float(distance)))
-            if score < self.relevance_floor:
-                continue
-            passages.append(
-                RetrievedPassage(
-                    doc_id=chunk.doc_id,
-                    chunk_id=chunk.chunk_id,
-                    text=chunk.text,
-                    title=chunk.title,
-                    score=score,
-                    char_start=chunk.char_start,
-                    char_end=chunk.char_end,
-                )
+            top_score = max(top_score, score)
+            passage = RetrievedPassage(
+                doc_id=chunk.doc_id,
+                chunk_id=chunk.chunk_id,
+                text=chunk.text,
+                title=chunk.title,
+                score=score,
+                char_start=chunk.char_start,
+                char_end=chunk.char_end,
             )
+            (accepted if score >= self.relevance_floor else rejected).append(passage)
 
-        return sorted(passages, key=lambda p: p.score, reverse=True)
+        by_score = lambda p: p.score  # noqa: E731
+        return RetrievalResult(
+            passages=sorted(accepted, key=by_score, reverse=True),
+            rejected=sorted(rejected, key=by_score, reverse=True),
+            top_score=top_score,
+            floor_applied=self.relevance_floor,
+        )
