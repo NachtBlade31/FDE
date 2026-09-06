@@ -24,7 +24,7 @@ def _env(**overrides):
         "GROQ_API_KEY": "gsk_test_key",
         "GROQ_MODEL": "llama-3.3-70b-versatile",
         "CONFIDENCE_THRESHOLD": "0.80",
-        "RELEVANCE_FLOOR": "0.35",
+        "RELEVANCE_FLOOR": "0.40",
     }
     base.update(overrides)
     return base
@@ -123,6 +123,12 @@ def test_a_non_numeric_threshold_is_rejected_loudly():
 
 
 def test_thresholds_fall_back_to_documented_defaults_when_absent():
+    """The relevance floor default is derived, not chosen.
+
+    0.40 comes from scripts/tune_retrieval.py over the 500 development tickets;
+    the curve is in evaluation/results/2026-09-04-retrieval-tuning.txt. If this
+    value changes, the sweep must be re-run and the justification updated.
+    """
     env = _env()
     del env["CONFIDENCE_THRESHOLD"]
     del env["RELEVANCE_FLOOR"]
@@ -130,7 +136,7 @@ def test_thresholds_fall_back_to_documented_defaults_when_absent():
     settings = Settings.from_env(env)
 
     assert settings.confidence_threshold == pytest.approx(0.80)
-    assert settings.relevance_floor == pytest.approx(0.35)
+    assert settings.relevance_floor == pytest.approx(0.40)
 
 
 # --- kill switch (FR-22) ------------------------------------------------------

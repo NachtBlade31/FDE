@@ -24,16 +24,34 @@ from enum import Enum
 from pathlib import Path
 from typing import Mapping
 
-# PLACEHOLDER VALUES — both must be derived, not chosen.
-#
-# Design decision D4: "The threshold is derived, not chosen", and the Project
-# Brief explicitly penalises "a threshold chosen because it looked reasonable
-# rather than because it was measured". These defaults exist only so the system
-# runs before the sweep has been done. Day 2 produces the relevance/recall curve
-# and Day 3 the precision/coverage curve and calibration table; both numbers are
-# replaced from those, and the chosen values are justified in the report.
+# Design decision D4: thresholds are derived, not chosen. The Project Brief
+# penalises "a threshold chosen because it looked reasonable rather than because
+# it was measured".
+
 DEFAULT_CONFIDENCE_THRESHOLD = 0.80  # TODO(D4): replace from the Day 3 sweep
-DEFAULT_RELEVANCE_FLOOR = 0.35  # TODO(D4): replace from the Day 2 curve
+
+# DERIVED 2026-09-04 from scripts/tune_retrieval.py over the 500 development
+# tickets. Full curve: evaluation/results/2026-09-04-retrieval-tuning.txt
+#
+#   floor   any-hit@3   ungroundable rejected
+#   0.35      93.6%          12.6%
+#   0.40      92.7%          14.7%   <- chosen
+#   0.45      85.4%          21.0%
+#   0.50      73.4%          35.0%   <- argmax of the naive combined score
+#
+# 0.40 is the knee: past it, any-hit falls off a cliff (7.3 points between 0.40
+# and 0.45) for a modest gain in rejection.
+#
+# We deliberately do NOT take the argmax of the combined score (0.50). Doing so
+# would trade 19 points of retrieval hit rate for 20 points of rejection, and
+# that trade is wrong here because rejecting ungroundable tickets is not the
+# relevance floor's job. Retrieval similarity turns out to be a weak signal for
+# groundability — even at 0.60 only 70.6% of ungroundable tickets are rejected,
+# by which point any-hit has collapsed to 33.9%. Groundability is decided
+# downstream by the grounding guardrail, which checks whether claims are actually
+# supported. The floor's job is narrower: keep irrelevant passages out of the
+# generation prompt.
+DEFAULT_RELEVANCE_FLOOR = 0.40
 DEFAULT_KILL_SWITCH_PATH = Path("storage/KILL")
 
 # Values shipped in .env.example. Copying the template without editing it must
