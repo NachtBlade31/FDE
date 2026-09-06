@@ -657,6 +657,116 @@ and by grounding, and it can never be answered from documentation anyway.
 
 ---
 
+## D-28 · The provider is not deterministic at temperature 0 — the cache is what satisfies A5
+
+**Tag:** `DEMO` · **Date:** 2026-09-07 · **Status:** Accepted · **Measured**
+
+A5 requires: "Run the same ticket twice. The decision does not change." Tested
+directly — 20 unique tickets, two passes, a fresh cache for each so nothing was
+replayed:
+
+| | differed |
+|---|---|
+| intent | **1 / 20** |
+| confidence | **3 / 20** |
+
+`temperature=0` is not determinism. Provider-side batching and hardware
+non-determinism move the output. Three cold 100-ticket runs gave **89.0%, 86.0%,
+87.0%** accuracy on identical input, and ECE of **3.2%, 6.0%, 5.2%**.
+
+**Consequence: the content-addressed cache is not an optimisation, it is the
+mechanism that satisfies A5.** D5 originally justified it on cost and
+reproducibility; it is now load-bearing for an acceptance criterion, and the
+report says so rather than implying the model is deterministic.
+
+**A reassuring detail worth checking on the full run:** the one intent that
+flipped went `compliance_request` → `feature_request`. Both are deny-listed, so
+the *routing decision* was identical either way. Whether flips can cross the
+deny-list boundary is a governance question, and it is now on the Day 5 checklist.
+
+**Reporting consequence:** accuracy is quoted as **87% ± 2 across runs**, not as a
+single figure. ECE straddles the 5-point condition, so calibration is reported as
+*at the boundary, with run variance exceeding the margin* — not as a pass.
+
+> **Video line:** "Temperature zero is not determinism. I measured it: one ticket
+> in twenty changes its answer between runs. The acceptance criterion asks the
+> same ticket to give the same decision twice — the cache is what makes that
+> true, not the model."
+
+---
+
+## D-29 · Confidence calibrates; margin discriminates (O-3, resolved)
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Accepted · **Measured**
+
+D4 requires the routing threshold to be derived, which presupposes a variable
+with spread to sweep. Self-reported confidence has none: **99 of 100** predictions
+land in one band.
+
+Two candidates, measured:
+
+| | ECE | Precision/coverage curve |
+|---|---|---|
+| top-1 confidence | **3.2–6.0%** | flat — nothing to sweep |
+| margin (top-1 − best alternative) | 6.9% | **real: 0.80 → coverage 94%, precision 92.6% vs 89.0% base** |
+
+**They are good at different things, and the design uses each for what it is good
+at.** Confidence is better *calibrated*, so it is what the governance calibration
+table reports. Margin is better at *discriminating*, so it is what the routing
+threshold is swept on. A variable can rank without being a probability, and
+conflating the two would have produced a threshold that is an artifact of the
+model's numeric habits rather than a measured trade-off.
+
+**Both are weak, and the conjunction is ranked accordingly.** The margin curve is
+flat below 0.70. So D2's four conjuncts are not equal: **grounding and the
+deny-list carry the routing decision; confidence is the weakest leg.** That
+ranking is documented rather than implied — 56 of 87 deny-list tickets are
+protected by grounding alone, which is a stronger control than any threshold.
+
+**This is the Stage 5 revision trigger.** PRD v1 assumed routing would rest on a
+calibrated confidence threshold (AS-02). Measurement showed self-reported
+confidence is non-discriminative on this data. The routing basis moved to margin
+plus grounding plus the deny-list. That is a specific requirement, a specific
+trigger and a specific change — exactly what the revision log asks for.
+
+> **Video line:** "I planned to route on a confidence threshold. Then I measured
+> it: ninety-nine of a hundred predictions sit in the same band. There is no
+> curve to pick a point on. So the threshold moved to a variable that actually
+> separates, and the routing leans on whether the answer is grounded instead."
+
+---
+
+## D-30 · A cache replay is not a measurement
+
+**Tag:** `NEXT` · **Date:** 2026-09-07 · **Status:** Fixed · **Caught in review**
+
+The committed throughput evidence for D-24 was a cache replay. The run that
+produced the reported figures was real, but the artifact captured afterwards
+re-ran the same script against a warm cache and recorded `0 provider calls, 100
+cache hits, p95 0.01s`. Accuracy survived — a cache hit replays a real completion
+— but latency and calls-per-ticket measured dictionary lookups.
+
+**The systemic fix, not just the instance:** the reporter now refuses to emit a
+throughput budget when no live calls were made, and when some tickets were served
+from cache it says so and measures latency over live calls only. Within-run cache
+hits are real and expected — the data is templated (D-23), so 10 of 100 tickets
+duplicate an earlier one even on a cold run — but they flatter wall-clock and are
+disclosed rather than absorbed.
+
+This matters most on Day 5: the design already notes the hidden run has a cold
+cache by definition, so a warm rehearsal would produce a beautiful latency profile
+and validate nothing.
+
+**Honest cold figures** (`evaluation/results/2026-09-07-classifier-100-cold.txt`):
+90 live calls for 100 tickets, 0 retries, p95 **1.25s**, wall clock 205s,
+projected **4.1 min** for 120 tickets of classification.
+
+> **Video line:** "One of my own evidence files was measuring its cache instead of
+> the system. The fix was not to re-run it — it was to make the report refuse to
+> print a throughput number when it has nothing live to measure."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |
@@ -664,6 +774,6 @@ and by grounding, and it can never be answered from documentation anyway.
 | ~~O-1~~ | ~~Chunking strategy~~ — resolved, see D-19 | ✅ Day 2 |
 | ~~O-2~~ | ~~Relevance floor~~ — resolved, see D-20 | ✅ Day 2 |
 | ~~O-5~~ | ~~Throughput budget~~ — 8000 TPM binding; 6.1 min/120 tickets for classification, see D-24 | ✅ Day 3 |
-| O-3 | Confidence threshold, from the precision/coverage curve | Day 3 |
+| ~~O-3~~ | ~~Confidence threshold~~ — resolved, see D-29 (margin, not confidence) | ✅ Day 3 |
 | ~~O-4~~ | ~~Marker vocabulary~~ — resolved, see D-27 | ✅ Day 3 |
 | O-6 | Incident procedure, six steps with owner and duration | Day 8 |

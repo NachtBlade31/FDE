@@ -120,8 +120,13 @@ Consequences that must be stated in the report rather than quietly enjoyed:
    99.4% leave-one-out, against a brief that targets 85%. That measures template
    regularity, not classification capability.
 
-2. The hidden set is drawn from the same population, so the figure will hold
-   there too. It still does not generalise to real CloudServe tickets.
+2. The hidden set is drawn from the same population, but NOT necessarily to
+   the same degree. Validation is markedly less templated than development:
+   25% duplicate bodies against 57%. If the hidden set resembles validation,
+   a figure measured on development is OPTIMISTIC. This is the third metric
+   on which development and validation diverge (see design section 2.4 for
+   first contact resolution and answerable_from_docs), which makes it a
+   finding about the pack's data rather than a quirk of one measure.
 
 3. Reported classification precision therefore describes performance on
    synthetic, templated data. Any claim about real-world performance is an

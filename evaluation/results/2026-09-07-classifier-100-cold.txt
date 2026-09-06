@@ -1,0 +1,71 @@
+tickets: 100 (rejected 0)
+provider: groq  model: openai/gpt-oss-20b
+  25/100  elapsed 67s
+  50/100  elapsed 131s
+  75/100  elapsed 142s
+  100/100  elapsed 205s
+
+============================================================
+ACCURACY
+============================================================
+overall intent accuracy: 87.0%  (87/100)
+
+weakest classes:
+  data_residency           0/3 = 0%
+  unclear_request          0/1 = 0%
+  onboarding               0/1 = 0%
+  feature_request          1/3 = 33%
+  database_issue           3/5 = 60%
+
+============================================================
+CALIBRATION
+============================================================
+
+      band |    n |  stated | observed |           95% CI |     gap
+--------------------------------------------------------------------
+0.0-0.2   |    0 |       - |        - |                - |       -
+0.2-0.4   |    0 |       - |        - |                - |       -
+0.4-0.6   |    0 |       - |        - |                - |       -
+0.6-0.8   |    1 |  75.0% |    0.0% | [ 0.0%, 79.3%] | +75.0%  <- n too small to infer
+0.8-1.0   |   99 |  92.4% |   87.9% | [80.0%, 92.9%] |  +4.5%
+
+  ECE (population-weighted): 5.2%   condition: within 5 points
+  FAILS on ECE
+
+  Headline is ECE, not the largest single-bin gap: a bin holding one
+  ticket must not be able to declare a governance failure on its own.
+  ECE = 5.2%
+
+============================================================
+DENY-LIST RECALL (D-04)
+============================================================
+  compliance_request     n=  4  layer1 4/4 =  100%  +layer3 4/4 =  100%  <- groundable, real residual
+  feature_request        n=  3  layer1 3/3 =  100%  +layer3 3/3 =  100%
+  security_incident      n=  4  layer1 4/4 =  100%  +layer3 4/4 =  100%  <- groundable, real residual
+  unclear_request        n=  1  layer1 0/1 =    0%  +layer3 1/1 =  100%
+
+deny-listed tickets missed by BOTH classifier layers: 0
+  (the lexical pre-screen, D1 layer 2, is a further independent control)
+
+============================================================
+THROUGHPUT BUDGET (F7)
+============================================================
+
+  NOTE: 10 of 100 tickets duplicated an
+  earlier ticket in this same run and were served from cache. Latency
+  below is measured over the 90 live calls only.
+
+  wall clock            : 205s for 100 tickets
+  per live call, mean   : 2.28s
+  per ticket, median    : 0.55s
+  per ticket, p95       : 1.25s   (target < 3s end to end)
+  provider calls        : 90 attempted, 90 ok, 0 failed
+  cache hits            : 10
+  retries               : 0
+  degraded              : False
+
+  calls per ticket      : 0.90 (classification only)
+  projected for 120     : 108 classification calls
+  projected wall clock  : 246s (4.1 min) for classification alone
+
+fallbacks: 0

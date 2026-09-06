@@ -58,6 +58,8 @@ Each review returns one of:
 
 | 4 | 2026-09-04 | Day 2 — corpus, chunking, retrieval (A4) | **CLEARED WITH CONDITIONS** | Credential claim independently verified: exhaustive blob-level scan of all history returned two hits, both `ci.yml`'s own regex string in two versions — history is clean, `.env.example` is tracked and placeholders only, `.env` never committed. Suite reproduced at **144 passed in 181.90s** (reported 121 — see D2-C5). All four review-3 conditions verified applied in code, D1-C2 fixed at write time with `DuplicateTerminalStateError`, which is stronger than asked. Chunking decision is evidenced, not asserted. Five conditions, one substantive: the relevance floor ships as 0.35 while the evidence justifies 0.40 |
 
+| 5 | 2026-09-07 | Day 3 — classification, model client (A3) | **CLEARED WITH CONDITIONS** | Suite reproduced at 180 passed. All five review-4 conditions applied. The data-regularity analysis is the best discovery work in the project so far and the three real-provider findings (TPM not RPM is binding; reasoning models bill thinking against max_tokens and return 200 with empty content; empty completions were being cached as success) are exactly what Day 3 exists to surface. Six conditions. Two are serious: the committed F7 artifact is a **cache replay** whose throughput section contradicts the reported figures, so F7 is not resolved; and a confidence threshold **cannot** be derived from self-reported confidence on this data (99/100 in one band), so the router must lean on margin plus grounding and the deny-list. **D2-C1 remains open and has grown worse** — `.env.example` now ships both a stale floor (0.35 vs 0.40) and a stale model (`llama-3.3-70b-versatile` vs the measured `openai/gpt-oss-20b`), so a graded run would use a different model than every number was measured on. Blocked on a permission rule, correctly escalated, needs the user |
+
 ## Carried into Phase 1 (re-checked there)
 
 - **F5** urgency consumer — addressed in D2, verify it is actually wired at build time
@@ -88,6 +90,43 @@ All four applied to the spec before Day 1 code, not deferred.
   groundable fraction. Spec states 56.
 - **C4** — alternatives-aware abstention added as D1 layer 3, with the independence argument
   (top-1 label / surface tokens / distribution). ✅
+
+## Conditions from review 5 — Day 3 (D3-C1/C2 before the router; D3-C3 before Day 5)
+
+- **D3-C1 derive the threshold from margin, not top-1 confidence** — answer (e). 99 of 100
+  predictions sit in one band, so a sweep over self-reported confidence has nothing to sweep.
+  Use `top1.confidence − best_alternative.confidence`, which has real spread and which the
+  `alternatives` array already carries for C4. Report that raw self-reported confidence is
+  non-discriminative on this data, with the calibration table as the evidence. This is a
+  genuine Stage 5 PRD revision trigger: routing was assumed to rest on confidence, measurement
+  showed it cannot.
+- **D3-C2 report ECE, not max gap, as the calibration headline.** The committed artifact
+  currently states "largest calibration gap: 75.0% (governance condition: within 5 points)" —
+  i.e. it declares a governance failure on the strength of one ticket. Population-weighted ECE
+  is **3.2%**, which passes. Report every bin with its n and a Wilson interval, never drop a
+  bin, and headline ECE. The n=1 bin's 95% CI is [0.0%, 79.3%] — uninformative, which is a
+  stronger and more honest statement than either dropping it or headlining it.
+- **D3-C3 F7 is NOT resolved; the committed evidence is a cache replay.**
+  `2026-09-07-classifier-100.txt` records `provider calls: 0 attempted`, `cache hits: 100`,
+  `p95 0.01s`, `projected wall clock 0.0 min` — it measures dict lookups, not the provider,
+  and contradicts the reported 1.86s p95 / 0.90 calls per ticket / 6.1 min. Accuracy, deny-list
+  recall and calibration in that file remain valid (a cache hit replays a real completion);
+  the throughput section does not. Re-run cold and commit that artifact. Systemic fix: the
+  reporter must refuse to print a throughput budget when `cache_hits > 0`, or label it
+  `CACHE REPLAY — NOT A THROUGHPUT MEASUREMENT`. This matters most on Day 5, where a warm
+  rehearsal would validate nothing about a hidden run that is cold by definition.
+- **D3-C4 intent-distribution collapse check** — answer (d). The degraded flag depends on
+  failures being booked as failures, and the gpt-oss-20b finding shows a provider can return
+  HTTP 200 with empty content. Add an independent invariant: if predicted intents collapse onto
+  one class (or the fallback rate exceeds a few per cent), the run is broken regardless of the
+  flag. Cheap, and it catches partial failure the flag misses.
+- **D3-C5 `degraded` must reach the metrics report and void business metrics.** It currently
+  reaches one `print` in `scripts/evaluate_classifier.py`. A degraded run must not be able to
+  report FCR and escalation rate as though valid.
+- **D3-C6 validation is less templated than dev, so 89% may not hold.** The regularity artifact
+  concludes the figure "will hold there too" on the hidden set. Validation shows 25% duplicate
+  bodies vs dev's 57%, opening ratio 1.5x vs 3.9x, Jaccard ratio 15.6x vs 19.0x. The same
+  dev/validation divergence as design §2.4. Soften the claim to match the evidence.
 
 ## Conditions from review 4 — Day 2 (fix before the router is written)
 
