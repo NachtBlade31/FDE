@@ -987,6 +987,73 @@ never measuring.
 
 ---
 
+## D-38 · The first gate run failed, and the cause was my own pacing
+
+**Tag:** `DEMO` · **Date:** 2026-09-07 · **Status:** Fixed · **Found by running it**
+
+The first unattended run over the 80-ticket validation set was killed at 90
+minutes having processed **25 tickets** — 3.6 minutes each. That is an A9 failure,
+and it is exactly the failure the Build Spec warns about: "Systems that work
+beautifully on a ticket at a time frequently collapse on the fortieth consecutive
+ticket."
+
+**The cause was the rate-limit pacing I had added to fix the previous
+rate-limit problem.** Measured directly against the provider:
+
+```
+classify  544 tokens   remaining 7231   reset  5.8s
+generate  681 tokens   remaining 6703   reset  9.7s
+...                    remaining 3853   reset 31.1s
+```
+
+`reset` is **time until the bucket is full**, and it grows as the bucket empties.
+Deficit ÷ reset is constant at **0.0075 s/token = 133 tokens/second**, which is
+the 8000-per-minute limit. The bucket refills *continuously*.
+
+My pacing slept the **entire reset window** whenever the allowance fell below a
+fixed floor — so it would sleep up to a minute to buy a few hundred tokens, then
+clear its state, make one call, and sleep again.
+
+**The fix is to wait for the shortfall, not for a full bucket:**
+
+```
+rate      = (limit − remaining) / reset        # derived, not assumed
+shortfall = needed − remaining
+wait      = shortfall / rate                   # capped at 65s
+```
+
+At ~1,225 tokens per ticket against 8000 TPM, the sustainable rate is **6.5
+tickets a minute**, so 80 tickets should take about **12 minutes** rather than
+the 4.8 hours the first attempt was on course for.
+
+**A second pass was needed.** Proportional waiting took it from 3.6 minutes a
+ticket to 40 seconds — better, still four times slower than theory. The remaining
+cause was the estimate: reserving `prompt + max_tokens` budgets 1,200 tokens for
+a classification call that costs **544**, so every wait was for roughly twice
+what was required. The response carries `usage.total_tokens`, so the client now
+paces against a moving average of what calls **actually** cost rather than
+against a guess. Two guesses replaced by two measurements: the refill rate from
+the headers, the call cost from the usage figures.
+
+The rate is derived from the headers rather than hardcoded, so a changed limit
+changes the pacing without a code change. The wait is capped because A9 forbids
+any single response from being able to stall an unattended run.
+
+**Why this only appeared at the gate.** Every earlier measurement ran 100 tickets
+of *classification only* — about half the tokens per ticket, and enough headroom
+that the bad path rarely triggered. Adding generation roughly doubled the token
+cost per ticket and pushed the allowance below the floor on nearly every call.
+The Build Spec's advice to run the full chain end to end early in week two is
+precisely this: the defect is invisible until the whole pipeline runs at volume.
+
+> **Video line:** "My first full run did twenty-five tickets in ninety minutes. The
+> bug was in the fix I'd written for the previous rate-limit problem — I was
+> sleeping until the token bucket was completely full when I only needed a few
+> hundred tokens. It refills continuously, and the header tells you the rate if
+> you do the arithmetic."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |

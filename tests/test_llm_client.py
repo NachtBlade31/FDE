@@ -443,3 +443,123 @@ def test_an_empty_completion_is_never_cached(client):
 
 def test_a_whitespace_only_completion_is_also_a_failure(client):
     assert client(RecordingTransport(["   \n  "] * 4)).complete("sys", "user").ok is False
+
+
+# --- pacing must wait for the deficit, not for a full bucket ------------------
+
+
+def test_pacing_waits_only_long_enough_to_accrue_what_the_call_needs(tmp_path):
+    """The token bucket refills continuously; reset is time-until-FULL.
+
+    Measured 2026-09-07 on Groq: deficit divided by reset is constant at
+    0.0075 s/token, i.e. 133 tokens/second, i.e. the 8000 TPM limit. Sleeping the
+    whole reset window whenever the allowance dipped made an 80-ticket run take
+    90 minutes for 25 tickets. Waiting only for the shortfall is the difference
+    between the gate passing and failing.
+    """
+    delays: list[float] = []
+    transport = RecordingTransport(
+        [
+            ("first", {"remaining_tokens": 900, "reset_tokens": 53.0, "limit_tokens": 8000}),
+            "second",
+        ]
+    )
+    client = LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    )
+    client.complete("sys", "one", max_tokens=500)   # establishes the allowance
+    client.complete("sys", "two", max_tokens=500)   # paces on it
+
+    # Needs ~500 completion + prompt; has 900. The shortfall is small, so the
+    # wait must be a few seconds, not the 53s until the bucket is full.
+    assert delays, "should have paced"
+    assert delays[0] < 15.0, f"waited {delays[0]:.1f}s for a small shortfall"
+
+
+def test_pacing_derives_the_refill_rate_from_the_headers(tmp_path):
+    """Self-calibrating: rate = (limit - remaining) / reset."""
+    delays: list[float] = []
+    transport = RecordingTransport(
+        [
+            ("first", {"remaining_tokens": 0, "reset_tokens": 60.0, "limit_tokens": 8000}),
+            "second",
+        ]
+    )
+    client = LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    )
+    client.complete("sys", "one", max_tokens=500)
+    client.complete("sys", "two", max_tokens=500)
+
+    # Empty bucket refilling at 8000/60 = 133 tokens/s. Needing roughly 1200
+    # tokens is about 9 seconds, not 60.
+    assert 1.0 < delays[0] < 20.0
+
+
+def test_a_healthy_allowance_still_causes_no_wait(tmp_path):
+    delays: list[float] = []
+    transport = RecordingTransport(
+        [("first", {"remaining_tokens": 7000, "reset_tokens": 8.0, "limit_tokens": 8000}), "second"]
+    )
+    client = LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    )
+    client.complete("sys", "one", max_tokens=500)
+    client.complete("sys", "two", max_tokens=500)
+
+    assert delays == []
+
+
+def test_the_wait_is_capped_so_one_bad_header_cannot_stall_the_run(tmp_path):
+    """A9: no single response may be able to halt an unattended run."""
+    delays: list[float] = []
+    transport = RecordingTransport(
+        [
+            ("first", {"remaining_tokens": 0, "reset_tokens": 99999.0, "limit_tokens": 8000}),
+            "second",
+        ]
+    )
+    client = LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    )
+    client.complete("sys", "one", max_tokens=500)
+    client.complete("sys", "two", max_tokens=500)
+
+    assert delays[0] <= LLMClient.MAX_PACING_SECONDS
+
+
+def test_pacing_uses_the_observed_cost_once_the_provider_reports_it(tmp_path):
+    """Reserving prompt+max_tokens over-reserved by more than two to one.
+
+    A classification call is budgeted 1200 tokens and costs 544. Over an
+    80-ticket run that alone doubled the wall clock. The response carries the
+    real figure, so there is no need to guess.
+    """
+    delays: list[float] = []
+    limits = {"remaining_tokens": 900, "reset_tokens": 53.0, "limit_tokens": 8000,
+              "observed_tokens": 544}
+    transport = RecordingTransport([("first", limits), "second"])
+
+    client = LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    )
+    client.complete("sys", "one", max_tokens=500)
+    client.complete("sys", "two", max_tokens=500)
+
+    # Needs 544 * 1.25 = 680, has 900 -> no shortfall, so no wait at all.
+    assert delays == []
+
+
+def test_a_larger_observed_cost_still_causes_a_wait(tmp_path):
+    delays: list[float] = []
+    limits = {"remaining_tokens": 200, "reset_tokens": 58.0, "limit_tokens": 8000,
+              "observed_tokens": 1200}
+    transport = RecordingTransport([("first", limits), "second"])
+
+    client = LLMClient(
+        _settings(), transport=transport, cache_path=tmp_path / "c", sleep=delays.append
+    )
+    client.complete("sys", "one", max_tokens=500)
+    client.complete("sys", "two", max_tokens=500)
+
+    assert delays and delays[0] < LLMClient.MAX_PACING_SECONDS

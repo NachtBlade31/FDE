@@ -22,6 +22,12 @@ pythonpath = ["."]
 # pytest-cov is absent, which looks like a broken repository rather than a
 # missing optional dependency.
 addopts = ["-q", "--strict-markers"]
+filterwarnings = [
+    # LangGraph emits a pending-deprecation notice on import. It is noise in
+    # the gate output, where a grader reading the run should see the run.
+    "ignore::DeprecationWarning:langgraph.*",
+    "ignore:.*allowed_objects.*:",
+]
 markers = [
     "slow: needs the full dataset or a live model provider",
 ]

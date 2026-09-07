@@ -106,14 +106,42 @@ before you have obtained credentials.
 
 ## 6. Run the evaluation harness
 
-> Available from Day 5 of the build schedule. Documented here so the interface is
-> fixed in advance: it takes an **input path** and an **output path** as
-> arguments and never a hardcoded filename, because it will be pointed at a file
-> that does not exist yet.
+This is the single command that processes a whole ticket file end to end,
+unattended, and writes the metrics report.
 
 ```bash
-python -m evaluation.harness --input data/sample_tickets.json --output evaluation/results/
+python -m evaluation.harness --input data/sample_tickets.json --output evaluation/results/my-run
 ```
+
+It takes an **input path** and an **output path** as arguments and never a
+hardcoded filename, because it is meant to be pointed at a file this repository
+has never seen. Point it at any file using the pack's ticket schema:
+
+```bash
+python -m evaluation.harness --input /path/to/any_tickets.json --output results/
+```
+
+**What it writes** into the output directory:
+
+| File | Contents |
+|---|---|
+| `report.md` | The human-readable report: volume, business, technical, governance |
+| `metrics.json` | The same figures as data |
+| `outcomes.json` | Per-ticket audit trail: terminal state, reason, citations, latency |
+
+The decision log is written to `storage/decisions.db` and is reconciled against
+the run before the report is produced — if any ticket is missing from it, the
+report says so rather than quietly averaging over the gap.
+
+**Expect it to pause.** The provider's free tier is limited by tokens per minute,
+not requests, so the harness waits for the allowance window rather than retrying
+into the limit. The report separates *processing latency* (what the sub-3-second
+target measures) from *wall clock* (which includes those waits).
+
+**If the model provider is unreachable**, the run still completes: every ticket
+escalates with its retrieved context attached, and the report is marked
+`DEGRADED` with the business rates withheld rather than published — a broken run
+and a very conservative one otherwise look identical in the output.
 
 ## 7. Start the API
 

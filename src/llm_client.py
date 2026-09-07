@@ -208,11 +208,15 @@ def _default_transport(
         except ValueError:
             return _duration(raw)
 
-    text = response.json()["choices"][0]["message"]["content"]
+    payload_json = response.json()
+    text = payload_json["choices"][0]["message"]["content"]
+    usage = payload_json.get("usage") or {}
     return text, {
+        "observed_tokens": usage.get("total_tokens"),
         "remaining_tokens": header_number("x-ratelimit-remaining-tokens"),
         "reset_tokens": header_number("x-ratelimit-reset-tokens"),
         "remaining_requests": header_number("x-ratelimit-remaining-requests"),
+        "limit_tokens": header_number("x-ratelimit-limit-tokens"),
     }
 
 
@@ -236,6 +240,10 @@ class LLMClient:
         # Last known allowance, taken from the previous response headers.
         self._remaining_tokens = None
         self._reset_seconds = None
+        self._limit_tokens = None
+        # What a call actually costs, learned from the provider's own usage
+        # figures rather than assumed from max_tokens.
+        self._observed_cost = None
 
     # -- cache key ------------------------------------------------------------
 
@@ -256,9 +264,15 @@ class LLMClient:
 
     # -- rate limit pacing ----------------------------------------------------
 
-    # Below this many tokens remaining, wait for the window to reset rather
-    # than spend the remainder on calls that will be throttled anyway.
-    LOW_ALLOWANCE_TOKENS = 1500
+    # Never wait longer than this for the allowance, whatever the headers say.
+    # A9 forbids a single response from being able to stall an unattended run.
+    MAX_PACING_SECONDS = 65.0
+
+    # Only used before the first response has reported a real usage figure.
+    ASSUMED_PROMPT_TOKENS = 700
+
+    # A little headroom over the observed average, since costs vary per ticket.
+    COST_SAFETY_FACTOR = 1.25
 
     def _record_limits(self, limits):
         if not limits:
@@ -267,28 +281,74 @@ class LLMClient:
             self._remaining_tokens = float(limits["remaining_tokens"])
         if limits.get("reset_tokens") is not None:
             self._reset_seconds = float(limits["reset_tokens"])
+        if limits.get("limit_tokens") is not None:
+            self._limit_tokens = float(limits["limit_tokens"])
+        observed = limits.get("observed_tokens")
+        if observed:
+            # Exponential moving average of what calls actually cost. The
+            # provider reports it, so there is no need to guess.
+            cost = float(observed)
+            self._observed_cost = (
+                cost if self._observed_cost is None else 0.7 * self._observed_cost + 0.3 * cost
+            )
+
+    def _refill_rate(self):
+        """Tokens per second, derived from the headers rather than assumed.
+
+        The provider reports `reset` as time until the bucket is FULL, so the
+        refill rate is the current deficit divided by that time. Measured on Groq
+        this is constant at 133 tokens/second, which is the 8000-per-minute limit
+        — but deriving it means the pacing follows a changed limit without a code
+        change.
+        """
+        if not self._limit_tokens or self._reset_seconds is None or self._reset_seconds <= 0:
+            return None
+        deficit = self._limit_tokens - (self._remaining_tokens or 0.0)
+        if deficit <= 0:
+            return None
+        return deficit / self._reset_seconds
 
     def _pace(self, max_tokens):
-        """Wait before a call the remaining allowance cannot cover.
+        """Wait only long enough to accrue the shortfall for the next call.
 
-        The binding constraint on this free tier is tokens per minute, not
-        requests: measured 2026-09-07 as 8000 TPM against 1000 requests per
-        hour. Reacting only to 429s spends the allowance on retries. An
-        earlier 100-ticket run made 222 calls with 131 retries and fell back
-        on 75 tickets. Pacing on the headers turns that into steady progress.
+        The earlier version slept the entire reset window whenever the allowance
+        dipped below a fixed floor. Because `reset` grows as the bucket empties,
+        that meant sleeping up to a minute to buy a few hundred tokens: an
+        80-ticket run managed 25 tickets in 90 minutes, against a sustainable
+        rate of roughly 6.5 tickets a minute. Waiting for the deficit rather than
+        for a full bucket is the difference between clearing A9 and failing it.
         """
-        if self._remaining_tokens is None or self._reset_seconds is None:
-            return
-        if self._remaining_tokens >= max(self.LOW_ALLOWANCE_TOKENS, max_tokens * 2):
+        if self._remaining_tokens is None:
             return
 
-        wait = self._reset_seconds
+        # Reserving prompt+max_tokens over-reserved by more than two to one:
+        # a classification call is budgeted 1200 tokens and costs 544. Over an
+        # 80-ticket run that alone doubled the wall clock. The observed cost
+        # is what the provider bills, so it is what we pace against.
+        if self._observed_cost:
+            needed = self._observed_cost * self.COST_SAFETY_FACTOR
+        else:
+            needed = self.ASSUMED_PROMPT_TOKENS + max_tokens
+        shortfall = needed - self._remaining_tokens
+        if shortfall <= 0:
+            return
+
+        rate = self._refill_rate()
+        if rate is None or rate <= 0:
+            # No usable rate signal. Fall back to the reset window, capped.
+            wait = min(self._reset_seconds or 0.0, self.MAX_PACING_SECONDS)
+        else:
+            wait = min(shortfall / rate, self.MAX_PACING_SECONDS)
+
         if wait > 0:
             self.stats.paced_seconds += wait
             self.stats.paced_count += 1
             self._sleep(wait)
-        self._remaining_tokens = None
-        self._reset_seconds = None
+            # Assume the wait bought what it was meant to buy; the next response
+            # replaces this with a measured figure.
+            self._remaining_tokens = min(
+                self._limit_tokens or needed, self._remaining_tokens + wait * (rate or 0.0)
+            )
 
     def _backoff_for(self, exc, attempt):
         """Prefer the provider hint over our own exponential schedule."""
