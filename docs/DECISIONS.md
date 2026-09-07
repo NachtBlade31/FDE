@@ -855,6 +855,138 @@ resolution.
 
 ---
 
+## D-34 · Layer 3 is a precision control, not a safety layer
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-07 · **Status:** Reclassified · **Measured**
+
+Over 200 development tickets the abstention control caught **zero** deny-listed
+tickets that the other layers missed — the violation count is 0 at every floor
+including `off`. So it buys no governance protection on this data. What it does
+buy is measurable: **+1.5pt routing accuracy and +2.9pt auto-respond precision**.
+
+**It therefore moves out of D-04's safety argument and into D2's conjunction**,
+justified by Marcus's constraint — "I would rather it said nothing than said
+something wrong" — which those precision numbers directly serve. D-04 honestly
+has **two** classifier-independent safety layers plus grounding, not three.
+
+**Why it stays.** The review argued layer 2's recall collapses on the less
+templated split (77% dev → 50% validation) and that the 5-fold CV could not see
+it, because every fold comes from the same templated corpus. That last point is
+correct and important — it is D-23's warning applied to a safety control.
+
+But the aggregate hides where the loss falls. Measured per intent:
+
+| Intent | dev | validation |
+|---|---|---|
+| `security_incident` | 26/26 | **4/4** |
+| `compliance_request` | 26/26 | **1/1** |
+| `feature_request`, `unclear_request` | partial | poor |
+
+**Layer 2 holds at 100% on both groundable intents on both splits.** The
+aggregate drop is confined to the two intents that cannot ground and are
+protected structurally regardless. Validation n is 4 and 1, so this is thin
+evidence and is reported as such — but it does not support "layer 2 is weakened
+where it matters".
+
+> **Video line:** "One of my safety layers turned out not to be a safety layer.
+> It caught nothing the others missed. It stays because it makes the system more
+> precise, which is a different argument, and I made the different argument."
+
+---
+
+## D-35 · The margin threshold is a deliberate trade, not a plateau
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Corrected
+
+D-32 described 0.85 as "the conservative end of a plateau". That was wrong, and
+in the opposite direction to the relevance floor error. The real shape:
+
+| margin | FCR | route acc | auto precision | |
+|---|---|---|---|---|
+| 0.00–0.75 | 70.0% | 76.5% | 75.0% | **identical rows — margin never binds** |
+| 0.80 | 69.0% | 76.5% | 75.4% | already descending |
+| **0.85** | **64.5%** | 77.0% | **77.5%** | shipped |
+| 0.90 | 8.0% | 48.5% | 93.8% | cliff |
+
+The plateau is 0.00–0.75. **0.85 is mid-slope**, and the cost from 0.75 is **5.5
+points of FCR** — well outside the ±1.5pt run variance, so "within noise" is true
+of routing accuracy but false of first contact resolution, which is a business
+target.
+
+**The honest claim:** a deliberate trade of 5.5pt coverage for 2.5pt auto
+precision, justified by Marcus's constraint, and affordable because FCR still
+clears the 60% target with headroom. That survives "why not 0.80?"; "conservative
+end of a plateau" does not, because the table plainly shows 0.80 is flatter and
+cheaper.
+
+---
+
+## D-36 · Calibration sits on the governance boundary and sometimes fails
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Reported as a failed condition
+
+Four cold runs of 100 development tickets, identical inputs:
+
+| run | accuracy | ECE | condition (≤5%) |
+|---|---|---|---|
+| 1 | 89.0% | 3.2% | passes |
+| 2 | 86.0% | 6.0% | **fails** |
+| 3 | 87.0% | 5.2% | **fails** |
+| 4 | 90.0% | 2.5% | passes |
+
+**Two of four runs fail the governance condition.** The cause is specific and
+worth naming: the model is systematically overconfident by roughly 4 points in
+the 0.80–1.00 band, where 99 of 100 predictions land.
+
+**This is reported as a named failed condition with its cause, not a footnote.**
+The Submission Guide is explicit that a report saying "this was worse than we
+targeted, and here is what caused it" marks above one that omits the figure.
+
+**It is also the justification for the architecture.** Confidence fails
+calibration — which is precisely why D-29 routes on margin rather than
+confidence, and why D2's conjunction leans on grounding and the deny-list. The
+failed condition is the evidence for the design, not a defect in it.
+
+I reported this as passing at 3.2% in a summary; that figure came from the
+superseded cached run. The correction is D-30's lesson repeating.
+
+---
+
+## D-37 · Artifacts now carry their own provenance
+
+**Tag:** `NEXT` · **Date:** 2026-09-07 · **Status:** Fixed
+
+Three committed evidence files disagreed with what shipped: throughput measured
+over a warm cache (D-30), routing swept around 0.80 after 0.85 was adopted, and a
+marker-vocabulary file describing the 61-token derived list rather than the 56
+curated terms that ship.
+
+Build Spec §06 step 9 opens the metrics report and the decision log and
+reconciles them against each other, so an assessor spot-checking an artifact
+against the code must find them agreeing.
+
+**Every evaluation script now prints a provenance banner** — timestamp, commit,
+provider, model, and all three thresholds — so a stale artifact is obvious rather
+than plausible. The rejected-vocabulary file is renamed to say so in its filename
+and its first line.
+
+**A near-miss worth recording.** Reverting `derive_markers.py` from git undid an
+earlier fix, and re-running it **overwrote the shipped `src/markers.json` with the
+vocabulary D-27 had rejected**. The swap is silent: the router still loads a
+vocabulary and every other test still passes, but the safety control becomes the
+one that fires on the word "only". Three tests now guard it — provenance in the
+file, absence of the generic tokens, and presence of the security and compliance
+terms.
+
+**Separately, latency is now reported twice**, as design §5 committed. Processing
+latency answers the p95 < 3s target; wall clock including token-allowance pacing
+answers the gate's "reasonable time". They diverge sharply: **p95 0.84s
+processing against 304s total wall clock, of which 250s is pacing.** Reporting
+only the first hides the run duration; only the second fails a target it was
+never measuring.
+
+---
+
 ## Open decisions
 
 | # | Question | Due |

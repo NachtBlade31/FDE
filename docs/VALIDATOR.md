@@ -60,6 +60,8 @@ Each review returns one of:
 
 | 5 | 2026-09-07 | Day 3 — classification, model client (A3) | **CLEARED WITH CONDITIONS** | Suite reproduced at 180 passed. All five review-4 conditions applied. The data-regularity analysis is the best discovery work in the project so far and the three real-provider findings (TPM not RPM is binding; reasoning models bill thinking against max_tokens and return 200 with empty content; empty completions were being cached as success) are exactly what Day 3 exists to surface. Six conditions. Two are serious: the committed F7 artifact is a **cache replay** whose throughput section contradicts the reported figures, so F7 is not resolved; and a confidence threshold **cannot** be derived from self-reported confidence on this data (99/100 in one band), so the router must lean on margin plus grounding and the deny-list. **D2-C1 remains open and has grown worse** — `.env.example` now ships both a stale floor (0.35 vs 0.40) and a stale model (`llama-3.3-70b-versatile` vs the measured `openai/gpt-oss-20b`), so a graded run would use a different model than every number was measured on. Blocked on a permission rule, correctly escalated, needs the user |
 
+| 6 | 2026-09-07 | Day 3 complete — router, both thresholds derived (A3, A5) | **CLEARED WITH CONDITIONS** | Five of six review-5 conditions applied; D3-C4/C5 correctly deferred to the harness rather than claimed, which is the right call. D3-C3 fixed as a class — the reporter now refuses to emit throughput without live calls and discloses within-run cache hits. Marker recall measured by proper 5-fold CV with the in-sample figure explicitly labelled an upper bound; `test_env_template.py` caught a live drift within a minute. D2-C1 closed and verified. Five conditions. The important one reverses the coordinator's proposal: **layer 3 should stay**, because layer 2's recall falls from 77.0% to 50.0% on validation and the dev-only sweep cannot see that. Also: calibration now **fails** at ECE 5.2% on the shipped cold artifact, which the summary reported as passing |
+
 ## Carried into Phase 1 (re-checked there)
 
 - **F5** urgency consumer — addressed in D2, verify it is actually wired at build time
@@ -90,6 +92,42 @@ All four applied to the spec before Day 1 code, not deferred.
   groundable fraction. Spec states 56.
 - **C4** — alternatives-aware abstention added as D1 layer 3, with the independence argument
   (top-1 label / surface tokens / distribution). ✅
+
+## Conditions from review 6 — Day 3 complete (D4-C1 before Day 4 ships)
+
+- **D4-C1 keep layer 3. Layer 2 does not generalise, and the sweep cannot see it.** The
+  zero-violations-at-every-floor result is measured on dev, the split where layers 1 and 2 are
+  strongest. Scoring the shipped `src/markers.json` on validation — never seen by the
+  vocabulary — recall falls from **77.0% to 50.0%** and the FP rate rises from 6.1% to 9.1%
+  (validator's own tokeniser, so treat the ratio not the absolutes as comparable). Five-fold CV
+  *within* a templated corpus estimates in-corpus recall, not cross-corpus generalisation, so
+  the 90.8% held-out figure is optimistic for the hidden set in exactly the way D-23 warns
+  about. Layer 3 is the control that covers a weakened layer 2. Keep it at floor 0.05 — but
+  **reclassify it: it is a precision control, not a deny-list safety layer.** It provably added
+  zero governance protection over 200 tickets while adding +1.5pt routing accuracy and +2.9pt
+  auto precision. Justify it under Marcus's constraint in D2, and stop counting it as a third
+  safety layer in D1.
+- **D4-C2 calibration now FAILS and the message says it passes.** The shipped cold artifact
+  reports **ECE 5.2%, "FAILS on ECE"** against the five-point condition; the 3.2% I reproduced
+  was the superseded cached run. Surface this as a measured governance failure with its cause
+  (self-reported confidence clusters high), not as a footnote. Reporting a failed condition
+  honestly is worth more than burying it — but it must appear in the report and the video.
+- **D4-C3 the marker artifact documents a different vocabulary than the one that ships.**
+  `2026-09-07-marker-vocabulary.txt` reports 61 markers and lists generic words (`another`,
+  `api`, `call`, `customer`, `found`, `only`, `per`, `plan`); `src/markers.json` holds 56
+  genuinely domain-specific ones (`attack`, `attestation`, `breach`, `dpa`, `exfiltration`,
+  `gdpr`). The shipped file is much the better vocabulary; the artifact is stale. Regenerate it.
+  Third instance of artifact/claim drift — treat it as a process defect and regenerate every
+  artifact from the shipped config before Day 5.
+- **D4-C4 0.85 is on a slope, not a plateau.** The plateau is 0.00–0.75, where the numbers are
+  *identical* (margin never binds). 0.80→0.85 costs 5.5pt FCR (70.0→64.5) and buys 2.5pt auto
+  precision — outside the ±1.5pt run variance. Defend it as a deliberate precision-for-coverage
+  trade under Marcus's constraint, not as "the conservative end of a plateau". This is the
+  opposite error to the relevance floor, where 0.40 genuinely was the last point before a cliff.
+- **D4-C5 the shipped configuration's numbers are in no committed artifact.**
+  `2026-09-07-routing-200.txt` documents sweeps at margin 0.80 and states "shipped threshold
+  0.80"; the reported final figures (FCR 62.5%, routing accuracy 79.0%, auto precision 80.0%,
+  floor 0.05 with margin 0.85) appear nowhere in it. Commit a run at the shipped configuration.
 
 ## Conditions from review 5 — Day 3 (D3-C1/C2 before the router; D3-C3 before Day 5)
 

@@ -1,21 +1,30 @@
 tickets: 100 (rejected 0)
-provider: groq  model: openai/gpt-oss-20b
-  25/100  elapsed 67s
-  50/100  elapsed 131s
-  75/100  elapsed 142s
-  100/100  elapsed 205s
+==============================================================================
+PROVENANCE — the configuration this artifact was produced under
+==============================================================================
+  generated            : 2026-09-07T10:26:36
+  commit               : 190b0b1
+  provider / model     : groq / openai/gpt-oss-20b
+  confidence threshold : 0.85
+  relevance floor      : 0.4
+  abstention floor     : 0.05
+==============================================================================
+  25/100  elapsed 65s
+  50/100  elapsed 129s
+  75/100  elapsed 189s
+  100/100  elapsed 304s
 
 ============================================================
 ACCURACY
 ============================================================
-overall intent accuracy: 87.0%  (87/100)
+overall intent accuracy: 90.0%  (90/100)
 
 weakest classes:
-  data_residency           0/3 = 0%
   unclear_request          0/1 = 0%
   onboarding               0/1 = 0%
-  feature_request          1/3 = 33%
+  data_residency           1/3 = 33%
   database_issue           3/5 = 60%
+  authentication_failure   4/5 = 80%
 
 ============================================================
 CALIBRATION
@@ -27,14 +36,14 @@ CALIBRATION
 0.2-0.4   |    0 |       - |        - |                - |       -
 0.4-0.6   |    0 |       - |        - |                - |       -
 0.6-0.8   |    1 |  75.0% |    0.0% | [ 0.0%, 79.3%] | +75.0%  <- n too small to infer
-0.8-1.0   |   99 |  92.4% |   87.9% | [80.0%, 92.9%] |  +4.5%
+0.8-1.0   |   99 |  92.8% |   90.9% | [83.6%, 95.1%] |  +1.9%
 
-  ECE (population-weighted): 5.2%   condition: within 5 points
-  FAILS on ECE
+  ECE (population-weighted): 2.6%   condition: within 5 points
+  PASSES on ECE
 
   Headline is ECE, not the largest single-bin gap: a bin holding one
   ticket must not be able to declare a governance failure on its own.
-  ECE = 5.2%
+  ECE = 2.6%
 
 ============================================================
 DENY-LIST RECALL (D-04)
@@ -55,10 +64,17 @@ THROUGHPUT BUDGET (F7)
   earlier ticket in this same run and were served from cache. Latency
   below is measured over the 90 live calls only.
 
-  wall clock            : 205s for 100 tickets
-  per live call, mean   : 2.28s
-  per ticket, median    : 0.55s
-  per ticket, p95       : 1.25s   (target < 3s end to end)
+  wall clock, total     : 304s for 100 tickets
+  of which rate-limit pacing: 250s in 5 waits
+
+  PROCESSING LATENCY (excludes pacing waits) - this is the p95 < 3s target
+    mean                : 0.59s
+    median              : 0.57s
+    p95                 : 0.84s   PASSES the < 3s target
+
+  WALL CLOCK PER TICKET (includes pacing) - this is the run duration
+    median              : 0.58s
+    p95                 : 1.29s
   provider calls        : 90 attempted, 90 ok, 0 failed
   cache hits            : 10
   retries               : 0
@@ -66,6 +82,6 @@ THROUGHPUT BUDGET (F7)
 
   calls per ticket      : 0.90 (classification only)
   projected for 120     : 108 classification calls
-  projected wall clock  : 246s (4.1 min) for classification alone
+  projected wall clock  : 364s (6.1 min) for classification alone
 
 fallbacks: 0

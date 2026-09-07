@@ -103,6 +103,38 @@ def calibration_table(rows: list[tuple[float, bool]], bands: int = 5) -> float:
     return ece
 
 
+def print_provenance(settings, extra=None):
+    """State the configuration this artifact was produced under.
+
+    An evidence file that does not name its configuration cannot be checked
+    against the code, and three of ours drifted before this existed.
+    """
+    import datetime
+    import subprocess
+
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, cwd=REPO, timeout=10,
+        ).stdout.strip() or "unknown"
+    except Exception:  # pragma: no cover - provenance must never break a run
+        commit = "unknown"
+
+    print("=" * 78)
+    print("PROVENANCE — the configuration this artifact was produced under")
+    print("=" * 78)
+    print(f"  generated            : {datetime.datetime.now().isoformat(timespec='seconds')}")
+    print(f"  commit               : {commit}")
+    print(f"  provider / model     : {settings.provider.value} / {settings.model_name}")
+    print(f"  confidence threshold : {settings.confidence_threshold}")
+    print(f"  relevance floor      : {settings.relevance_floor}")
+    from src.config import DEFAULT_ABSTENTION_FLOOR
+    print(f"  abstention floor     : {DEFAULT_ABSTENTION_FLOOR}")
+    for line in extra or []:
+        print(f"  {line}")
+    print("=" * 78)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=100)
@@ -118,7 +150,7 @@ def main() -> int:
     print(f"tickets: {len(tickets)} (rejected {len(rejected)})")
 
     settings = Settings.from_env()
-    print(f"provider: {settings.provider.value}  model: {settings.model_name}")
+    print_provenance(settings)
     if not settings.has_model_access:
         print("no model access — cannot evaluate the classifier")
         return 1
@@ -128,11 +160,14 @@ def main() -> int:
 
     started = time.perf_counter()
     latencies: list[float] = []
+    paced_each: list[float] = []
     results = []
     for index, ticket in enumerate(tickets, 1):
         t0 = time.perf_counter()
+        paced_before = client.stats.paced_seconds
         results.append((ticket, classifier.classify(ticket)))
         latencies.append(time.perf_counter() - t0)
+        paced_each.append(client.stats.paced_seconds - paced_before)
         if index % 25 == 0:
             print(f"  {index}/{len(tickets)}  elapsed {time.perf_counter() - started:.0f}s")
     elapsed = time.perf_counter() - started
@@ -210,11 +245,23 @@ def main() -> int:
     # data is templated (D-23), so a cold run still de-duplicates. Those are
     # excluded from the latency profile, which is measured over live calls only,
     # and the de-duplication rate is disclosed because it flatters wall-clock.
-    live_latencies = [
-        latency
-        for latency, (_, classification) in zip(latencies, results)
+    # Two different questions, and conflating them answers neither.
+    #
+    #   processing latency - what the p95 < 3s target means: how long the system
+    #     takes to handle a ticket once it is working on it.
+    #   wall clock - what the gate's "reasonable time" means: how long the whole
+    #     unattended run takes, including waiting for the token allowance to reset.
+    #
+    # Under token-per-minute pacing these diverge sharply. Reporting only the
+    # first hides the real run duration; reporting only the second fails a target
+    # it was never measuring.
+    live = [
+        (latency, paced)
+        for latency, paced, (_, classification) in zip(latencies, paced_each, results)
         if not classification.from_cache
     ]
+    live_latencies = [latency - paced for latency, paced in live]
+    live_wall = [latency for latency, _ in live]
     if client.stats.cache_hits:
         print(
             f"\n  NOTE: {client.stats.cache_hits} of {len(tickets)} tickets duplicated an\n"
@@ -224,10 +271,22 @@ def main() -> int:
 
     ordered = sorted(live_latencies or latencies)
     p95 = ordered[int(0.95 * len(ordered)) - 1]
-    print(f"  wall clock            : {elapsed:.0f}s for {len(tickets)} tickets")
-    print(f"  per live call, mean   : {sum(ordered) / len(ordered):.2f}s")
-    print(f"  per ticket, median    : {ordered[len(ordered) // 2]:.2f}s")
-    print(f"  per ticket, p95       : {p95:.2f}s   (target < 3s end to end)")
+    wall = sorted(live_wall or latencies)
+    wall_p95 = wall[int(0.95 * len(wall)) - 1]
+
+    print(f"  wall clock, total     : {elapsed:.0f}s for {len(tickets)} tickets")
+    print(f"  of which rate-limit pacing: {client.stats.paced_seconds:.0f}s "
+          f"in {client.stats.paced_count} waits")
+    print()
+    print("  PROCESSING LATENCY (excludes pacing waits) - this is the p95 < 3s target")
+    print(f"    mean                : {sum(ordered) / len(ordered):.2f}s")
+    print(f"    median              : {ordered[len(ordered) // 2]:.2f}s")
+    print(f"    p95                 : {p95:.2f}s   "
+          f"{'PASSES' if p95 < 3.0 else 'FAILS'} the < 3s target")
+    print()
+    print("  WALL CLOCK PER TICKET (includes pacing) - this is the run duration")
+    print(f"    median              : {wall[len(wall) // 2]:.2f}s")
+    print(f"    p95                 : {wall_p95:.2f}s")
     print(f"  provider calls        : {client.stats.attempted} attempted, "
           f"{client.stats.succeeded} ok, {client.stats.failed} failed")
     print(f"  cache hits            : {client.stats.cache_hits}")

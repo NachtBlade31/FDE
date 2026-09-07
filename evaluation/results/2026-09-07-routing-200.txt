@@ -1,4 +1,14 @@
-tickets: 200   model: openai/gpt-oss-20b
+tickets: 200
+==============================================================================
+PROVENANCE — the configuration this artifact was produced under
+==============================================================================
+  generated            : 2026-09-07T10:10:41
+  commit               : 190b0b1
+  provider / model     : groq / openai/gpt-oss-20b
+  confidence threshold : 0.85
+  relevance floor      : 0.4
+  abstention floor     : 0.05
+==============================================================================
 classifying and retrieving...
   50/200
   100/200
@@ -7,20 +17,20 @@ classifying and retrieving...
   provider calls 0, cache hits 200
 
 ==============================================================================
-ABSTENTION FLOOR SWEEP (D1 layer 3) — margin threshold held at 0.80
+ABSTENTION FLOOR SWEEP (D1 layer 3) — margin threshold held at the shipped 0.85
 ==============================================================================
 
   floor |     FCR | route acc | auto prec | alt escal | VIOLATIONS
 ------------------------------------------------------------------------
-   0.00 |  51.0% |    68.5% |    76.5% |        65 |          0
-   0.02 |  54.5% |    71.0% |    77.1% |        46 |          0
-   0.05 |  64.5% |    78.0% |    78.3% |        21 |          0
-   0.10 |  69.0% |    76.5% |    75.4% |         6 |          0
-   0.15 |  69.0% |    76.5% |    75.4% |         0 |          0
-   0.20 |  69.0% |    76.5% |    75.4% |         0 |          0
-   0.30 |  69.0% |    76.5% |    75.4% |         0 |          0
-   0.50 |  69.0% |    76.5% |    75.4% |         0 |          0
-    off |  69.0% |    76.5% |    75.4% |         0 |          0
+   0.00 |  50.0% |    69.5% |    78.0% |        65 |          0
+   0.02 |  53.5% |    72.0% |    78.5% |        46 |          0
+   0.05 |  62.5% |    79.0% |    80.0% |        21 |          0
+   0.10 |  64.5% |    77.0% |    77.5% |         6 |          0
+   0.15 |  64.5% |    77.0% |    77.5% |         0 |          0
+   0.20 |  64.5% |    77.0% |    77.5% |         0 |          0
+   0.30 |  64.5% |    77.0% |    77.5% |         0 |          0
+   0.50 |  64.5% |    77.0% |    77.5% |         0 |          0
+    off |  64.5% |    77.0% |    77.5% |         0 |          0
 
 
 ==============================================================================
@@ -29,29 +39,29 @@ MARGIN THRESHOLD SWEEP (D4) — and the governance invariant at each point
 
  thresh |     FCR |   escal | route acc | auto prec | VIOLATIONS
 ----------------------------------------------------------------------
-   0.00 |  70.0% |  30.0% |    76.5% |    75.0% |          0
-   0.50 |  70.0% |  30.0% |    76.5% |    75.0% |          0
-   0.60 |  70.0% |  30.0% |    76.5% |    75.0% |          0
-   0.70 |  70.0% |  30.0% |    76.5% |    75.0% |          0
-   0.75 |  70.0% |  30.0% |    76.5% |    75.0% |          0
-   0.80 |  69.0% |  31.0% |    76.5% |    75.4% |          0
-   0.85 |  64.5% |  35.5% |    77.0% |    77.5% |          0
+   0.00 |  65.5% |  34.5% |    78.0% |    77.9% |          0
+   0.50 |  65.5% |  34.5% |    78.0% |    77.9% |          0
+   0.60 |  65.5% |  34.5% |    78.0% |    77.9% |          0
+   0.70 |  65.5% |  34.5% |    78.0% |    77.9% |          0
+   0.75 |  65.5% |  34.5% |    78.0% |    77.9% |          0
+   0.80 |  64.5% |  35.5% |    78.0% |    78.3% |          0
+   0.85 |  62.5% |  37.5% |    79.0% |    80.0% |          0
    0.90 |   8.0% |  92.0% |    48.5% |    93.8% |          0
    0.95 |   5.5% |  94.5% |    46.0% |    90.9% |          0
 
-best routing accuracy with zero violations: threshold 0.85 -> route acc 77.0%, FCR 64.5%, auto precision 77.5%
+best routing accuracy with zero violations: threshold 0.85 -> route acc 79.0%, FCR 62.5%, auto precision 80.0%
 
 ==============================================================================
-WHICH CONJUNCT ESCALATES? (at the shipped threshold 0.80)
+WHICH CONJUNCT ESCALATES? (shipped config: margin 0.85, abstention 0.05)
 ==============================================================================
 
-escalated: 71 of 200
+escalated: 75 of 200
 (a ticket can fail several checks, so these sum to more than the total)
-  deny_list          42  (59% of escalations)
-  lexical_screen     38  (54% of escalations)
-  alternatives       21  (30% of escalations)
-  margin             10  (14% of escalations)
-  grounded           10  (14% of escalations)
+  deny_list          42  (56% of escalations)
+  lexical_screen     38  (51% of escalations)
+  margin             22  (29% of escalations)
+  alternatives       21  (28% of escalations)
+  grounded           10  (13% of escalations)
 
 ==============================================================================
 GOVERNANCE CONDITION

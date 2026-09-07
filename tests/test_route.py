@@ -458,3 +458,48 @@ def test_the_abstention_floor_is_recorded_in_the_reason():
     )
 
     assert "security_incident" in decision.reason
+
+
+# --- the shipped vocabulary must be the curated one, not the rejected one -----
+
+
+def test_the_shipped_vocabulary_is_the_curated_one():
+    """scripts/derive_markers.py once overwrote this file with the list D-27 rejected.
+
+    That swap is silent: the router still loads a vocabulary and every other test
+    still passes, but the safety control becomes the one that fires on the word
+    "only". The shipped file carries provenance so the swap is detectable.
+    """
+    import json
+    from pathlib import Path
+
+    payload = json.loads(
+        (Path(__file__).resolve().parents[1] / "src" / "markers.json").read_text(encoding="utf-8")
+    )
+
+    assert payload.get("decision") == "D-27", "markers.json lost its provenance"
+    assert payload["measured"]["security_incident_recall"] == 1.0
+
+
+def test_the_shipped_vocabulary_contains_no_generic_template_artifacts():
+    """The rejected derived list contained these; the curated list must not."""
+    from src.route import load_markers
+
+    markers = load_markers()
+    generic = {"another", "call", "calls", "going", "look", "only", "once", "per", "nobody"}
+
+    assert not (markers & generic), (
+        f"generic tokens in the safety vocabulary: {sorted(markers & generic)}. "
+        "These are template artifacts, not safety signals — see D-27."
+    )
+
+
+def test_the_shipped_vocabulary_covers_the_two_groundable_deny_list_intents():
+    """Layer 2's real job. feature_request and unclear_request cannot ground and
+    are protected structurally, so recall there is not the control that matters."""
+    from src.route import load_markers
+
+    markers = load_markers()
+
+    assert {"breach", "compromised", "unauthorised"} <= markers  # security
+    assert {"audit", "compliance", "retention", "residency"} <= markers  # compliance

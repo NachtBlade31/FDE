@@ -1,3 +1,20 @@
+==============================================================================
+THIS ARTIFACT DESCRIBES A VOCABULARY THAT WAS REJECTED
+==============================================================================
+
+  The automatically derived vocabulary measured below is NOT what ships.
+  src/markers.json holds a hand-curated list of 56 terms instead.
+
+  The derived list scores higher overall but contains generic template
+  artifacts - 'another', 'call', 'going', 'only', 'once', 'per', 'nobody'
+  - which correlate with deny-list templates in this synthetic data and
+  denote nothing. A safety control that fires on the word 'only' is not
+  defensible. See docs/DECISIONS.md D-27 for the full argument.
+
+  This file exists so the comparison can be re-run and audited. It is
+  not a description of the shipped control.
+
+==============================================================================
 development tickets: 500
 deny-listed        : 87
 
@@ -24,4 +41,6 @@ Final vocabulary, derived on the full development set:
   activity, address, affects, another, api, audit, auditor, believes, breach, call, calls, caps, claims, configure, considering, covering, customer, default, demonstrate, employee, everyone, exposed, following, former, found, given, going, leaving, loading, logged, look, months, nobody, none, once, only, options, overspend, per, plan
   ... and 21 more
 
-written to src\markers.json
+derived vocabulary written to evaluation\results\derived-markers-comparison.json FOR COMPARISON ONLY.
+The shipped vocabulary is the curated one in src/markers.json; see
+docs/DECISIONS.md D-27 for why the higher-scoring derived list was rejected.

@@ -34,7 +34,7 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(REPO / ".env")
 
 from src.classify import Classifier  # noqa: E402
-from src.config import Settings  # noqa: E402
+from src.config import DEFAULT_ABSTENTION_FLOOR, Settings  # noqa: E402
 from src.ingest import normalise_batch  # noqa: E402
 from src.llm_client import LLMClient  # noqa: E402
 from src.retrieve import Corpus, Retriever  # noqa: E402
@@ -51,10 +51,42 @@ PACK = (
 THRESHOLDS = [0.0, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
 
+def print_provenance(settings, extra=None):
+    """State the configuration this artifact was produced under.
+
+    An evidence file that does not name its configuration cannot be checked
+    against the code, and three of ours drifted before this existed.
+    """
+    import datetime
+    import subprocess
+
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, cwd=REPO, timeout=10,
+        ).stdout.strip() or "unknown"
+    except Exception:  # pragma: no cover - provenance must never break a run
+        commit = "unknown"
+
+    print("=" * 78)
+    print("PROVENANCE — the configuration this artifact was produced under")
+    print("=" * 78)
+    print(f"  generated            : {datetime.datetime.now().isoformat(timespec='seconds')}")
+    print(f"  commit               : {commit}")
+    print(f"  provider / model     : {settings.provider.value} / {settings.model_name}")
+    print(f"  confidence threshold : {settings.confidence_threshold}")
+    print(f"  relevance floor      : {settings.relevance_floor}")
+    from src.config import DEFAULT_ABSTENTION_FLOOR
+    print(f"  abstention floor     : {DEFAULT_ABSTENTION_FLOOR}")
+    for line in extra or []:
+        print(f"  {line}")
+    print("=" * 78)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=200)
-    parser.add_argument("--abstention-floor", type=float, default=0.10)
+    parser.add_argument("--abstention-floor", type=float, default=DEFAULT_ABSTENTION_FLOOR)
     parser.add_argument("--sweep-abstention", action="store_true")
     args = parser.parse_args()
 
@@ -65,7 +97,8 @@ def main() -> int:
     if not settings.has_model_access:
         print("no model access")
         return 1
-    print(f"tickets: {len(tickets)}   model: {settings.model_name}")
+    print(f"tickets: {len(tickets)}")
+    print_provenance(settings)
 
     client = LLMClient(settings, cache_path=REPO / "storage" / "cache")
     classifier = Classifier(client)
@@ -86,7 +119,10 @@ def main() -> int:
 
     if args.sweep_abstention:
         print("\n" + "=" * 78)
-        print("ABSTENTION FLOOR SWEEP (D1 layer 3) — margin threshold held at 0.80")
+        print(
+            "ABSTENTION FLOOR SWEEP (D1 layer 3) — margin threshold held at "
+            f"the shipped {settings.confidence_threshold}"
+        )
         print("=" * 78)
         print(
             f"\n{'floor':>7} | {'FCR':>7} | {'route acc':>9} | {'auto prec':>9} | "
@@ -94,7 +130,7 @@ def main() -> int:
         )
         print("-" * 72)
         for floor in [0.0, 0.02, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50, 1.01]:
-            r = Router(margin_threshold=0.80, abstention_floor=floor)
+            r = Router(margin_threshold=settings.confidence_threshold, abstention_floor=floor)
             ds = [r.route(t, c, rr) for t, c, rr in prepared]
             auto = [d for d in ds if d.action is Action.AUTO_RESPOND]
             fcr = len(auto) / len(ds)
@@ -169,11 +205,17 @@ def main() -> int:
         )
 
     # --- which conjunct is doing the work? -----------------------------------
-    router = Router(margin_threshold=settings.confidence_threshold)
+    router = Router(
+        margin_threshold=settings.confidence_threshold,
+        abstention_floor=args.abstention_floor,
+    )
     decisions = [router.route(t, c, r) for t, c, r in prepared]
 
     print(f"\n{'=' * 78}")
-    print(f"WHICH CONJUNCT ESCALATES? (at the shipped threshold {settings.confidence_threshold:.2f})")
+    print(
+        "WHICH CONJUNCT ESCALATES? (shipped config: margin "
+        f"{settings.confidence_threshold:.2f}, abstention {args.abstention_floor:.2f})"
+    )
     print(f"{'=' * 78}")
     failed = Counter()
     for decision in decisions:

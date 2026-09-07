@@ -94,6 +94,24 @@ def score(markers: set[str], held_out: list[dict]) -> tuple[int, int, int, int]:
 
 
 def main() -> int:
+    print("=" * 78)
+    print("THIS ARTIFACT DESCRIBES A VOCABULARY THAT WAS REJECTED")
+    print("=" * 78)
+    print()
+    print("  The automatically derived vocabulary measured below is NOT what ships.")
+    print("  src/markers.json holds a hand-curated list of 56 terms instead.")
+    print()
+    print("  The derived list scores higher overall but contains generic template")
+    print("  artifacts - 'another', 'call', 'going', 'only', 'once', 'per', 'nobody'")
+    print("  - which correlate with deny-list templates in this synthetic data and")
+    print("  denote nothing. A safety control that fires on the word 'only' is not")
+    print("  defensible. See docs/DECISIONS.md D-27 for the full argument.")
+    print()
+    print("  This file exists so the comparison can be re-run and audited. It is")
+    print("  not a description of the shipped control.")
+    print()
+    print("=" * 78)
+
     path = PACK / "development_tickets.json"
     if not path.exists():
         print(f"not found: {path}")
@@ -156,9 +174,15 @@ def main() -> int:
     if len(all_markers) > 40:
         print(f"  ... and {len(all_markers) - 40} more")
 
-    out = REPO / "src" / "markers.json"
+    # Deliberately NOT src/markers.json. This script measures the vocabulary that
+    # was rejected; writing it to the shipped path would silently replace the
+    # curated control with the one D-27 argued against. It did exactly that once.
+    out = REPO / "evaluation" / "results" / "derived-markers-comparison.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(sorted(all_markers), indent=2), encoding="utf-8")
-    print(f"\nwritten to {out.relative_to(REPO)}")
+    print(f"\nderived vocabulary written to {out.relative_to(REPO)} FOR COMPARISON ONLY.")
+    print("The shipped vocabulary is the curated one in src/markers.json; see")
+    print("docs/DECISIONS.md D-27 for why the higher-scoring derived list was rejected.")
     return 0
 
 
