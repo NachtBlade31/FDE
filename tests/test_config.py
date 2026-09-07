@@ -135,7 +135,7 @@ def test_thresholds_fall_back_to_documented_defaults_when_absent():
 
     settings = Settings.from_env(env)
 
-    assert settings.confidence_threshold == pytest.approx(0.80)
+    assert settings.confidence_threshold == pytest.approx(0.85)
     assert settings.relevance_floor == pytest.approx(0.40)
 
 

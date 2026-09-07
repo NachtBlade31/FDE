@@ -28,7 +28,27 @@ from typing import Mapping
 # penalises "a threshold chosen because it looked reasonable rather than because
 # it was measured".
 
-DEFAULT_CONFIDENCE_THRESHOLD = 0.80  # TODO(D4): replace from the Day 3 sweep
+# The routing threshold, applied to the MARGIN between the top intent and the
+# best alternative rather than to raw confidence. D-29 established that
+# self-reported confidence puts 99 of 100 predictions in one band and so has
+# nothing to sweep; margin does.
+#
+# DERIVED 2026-09-07 by sweep over 200 development tickets, abstention floor 0.05.
+# Evidence: evaluation/results/2026-09-07-routing-200.txt
+#
+#   margin   FCR     escal    route acc   auto prec
+#   <=0.75   65.5%   34.5%      78.0%       77.9%
+#    0.80    64.5%   35.5%      78.0%       78.3%
+#    0.85    62.5%   37.5%      79.0%       80.0%   <- chosen
+#    0.90     8.0%   92.0%      48.5%       93.8%   <- cliff
+#
+# 0.85 is the last point before the cliff and is best on both routing accuracy
+# and auto-respond precision, while first contact resolution still clears the
+# 60% target. Marcus's constraint - "I would rather it said nothing than said
+# something wrong" - makes precision the tie-breaker.
+#
+# Zero governance violations at every threshold tested.
+DEFAULT_CONFIDENCE_THRESHOLD = 0.85
 
 # DERIVED 2026-09-04 from scripts/tune_retrieval.py over the 500 development
 # tickets. Full curve: evaluation/results/2026-09-04-retrieval-tuning.txt
@@ -52,6 +72,11 @@ DEFAULT_CONFIDENCE_THRESHOLD = 0.80  # TODO(D4): replace from the Day 3 sweep
 # supported. The floor's job is narrower: keep irrelevant passages out of the
 # generation prompt.
 DEFAULT_RELEVANCE_FLOOR = 0.40
+# D1 layer 3 fires only on a deny-listed alternative at or above this confidence.
+# Without a floor the check escalated 66% of tickets and pinned first contact
+# resolution at 52% against a 60% target; see docs/DECISIONS.md D-31.
+DEFAULT_ABSTENTION_FLOOR = 0.05
+
 DEFAULT_KILL_SWITCH_PATH = Path("storage/KILL")
 
 # VERIFIED AGAINST THE LIVE PROVIDER 2026-09-04.

@@ -767,6 +767,94 @@ projected **4.1 min** for 120 tickets of classification.
 
 ---
 
+## D-31 · Layer 3 needed a floor; without one it escalated two thirds of everything
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-07 · **Status:** Fixed · **Found by measurement**
+
+The alternatives-aware abstention control (D-04 layer 3) was specified as "escalate
+if a deny-listed intent appears in the alternatives **above a low floor**". The
+floor was omitted in implementation, so *any* deny-listed alternative escalated.
+
+Measured over 200 development tickets, that single check caused **66% of all
+escalations** and held first contact resolution at 51% against a 60% target.
+
+| abstention floor | FCR | route acc | auto precision | layer-3 escalations |
+|---|---|---|---|---|
+| 0.00 (as built) | 51.0% | 68.5% | 76.5% | 65 |
+| **0.05 (derived)** | **64.5%** | **78.0%** | **78.3%** | 21 |
+| 0.10 | 69.0% | 76.5% | 75.4% | 6 |
+| 0.15 and above | 69.0% | 76.5% | 75.4% | **0 — inert** |
+
+**Why 0.05.** It maximises both routing accuracy and auto-respond precision, and
+is the last floor at which layer 3 still does anything: from 0.15 upward it never
+fires, which is indistinguishable from deleting the control.
+
+**Why the bug mattered.** A model asked to name its alternatives will list a
+deny-listed class at trivial confidence on most tickets. Treating a 2% alternative
+as a safety signal is not caution — it is noise, and it cost 13 points of first
+contact resolution while catching nothing the other layers missed. **Zero
+governance violations at every floor tested, including 0.00**, which is the proof
+that the escalations it added were not buying safety.
+
+> **Video line:** "One of my safety checks was firing on two thirds of all
+> tickets. It wasn't making the system safer — the violation count is zero with
+> or without it — it was just refusing to answer things it could have answered."
+
+---
+
+## D-32 · The margin threshold, derived (O-3 closed)
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Accepted · **Measured**
+
+Swept over 200 development tickets at abstention floor 0.05.
+Evidence: `evaluation/results/2026-09-07-routing-200.txt`.
+
+| margin | FCR | escalation | route acc | auto precision |
+|---|---|---|---|---|
+| ≤0.75 | 65.5% | 34.5% | 78.0% | 77.9% |
+| 0.80 | 64.5% | 35.5% | 78.0% | 78.3% |
+| **0.85** | **62.5%** | 37.5% | **79.0%** | **80.0%** |
+| 0.90 | 8.0% | 92.0% | 48.5% | 93.8% ← cliff |
+
+**0.85 chosen**: the last point before the cliff, best on both routing accuracy
+and auto-respond precision, with FCR still clearing the 60% target. Marcus's
+constraint — "I would rather it said nothing than said something wrong" — makes
+precision the tie-breaker.
+
+**What is not claimed:** 0.75 to 0.85 is a flat region, and the differences across
+it are within the ±1.5 point run-to-run variance established in D-28. 0.85 is
+defensible as the conservative end of a plateau, not as a measured optimum. This
+is the same honesty applied to the relevance floor in D-20.
+
+**The D-03 prediction held.** §2.3 argued from the labels that maximum defensible
+automation was 65.2% FCR with an escalation floor of 34.8%. The built system
+reaches **65.5% FCR at 34.5% escalation**. The ceiling analysis was right.
+
+---
+
+## D-33 · Config drift is now caught by the suite, not by review
+
+**Tag:** `SYSTEM` · **Date:** 2026-09-07 · **Status:** Fixed
+
+`.env.example` is not documentation. Build Spec §06 step 4 configures the graded
+run from it, so it *is* the configuration that runs.
+
+It drifted once and was caught in review: the template shipped `RELEVANCE_FLOOR=0.35`
+while the derived, defended value was 0.40, and named a model the provider had
+withdrawn. Deriving the margin threshold immediately produced a second instance —
+the template said 0.80 against a derived 0.85.
+
+`tests/test_env_template.py` now parses the template and asserts it matches every
+derived constant, that no BOM is present, that credentials are placeholders, and
+that the named model is non-empty. **The second drift was caught by the suite
+within a minute of being created**, which is the difference between a guard and a
+resolution.
+
+> **Video line:** "The file the grader configures from had drifted from the values
+> I'd derived. Twice. It's a test now, so it can't drift a third time."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |
