@@ -31,6 +31,31 @@ Requirements: [`docs/PRD-v1.md`](docs/PRD-v1.md).
 | Python 3.10 or later | `python --version` | Install from python.org |
 | Git | `git --version` | Install from git-scm.com |
 | ~600 MB free disk | — | The install is deliberately small; see note below |
+| **On Windows: a short checkout path** | — | **See below — this is the one thing that will stop the install** |
+
+> ### ⚠ Windows: clone to a short path
+>
+> `onnxruntime` ships files nested about 120 characters deep. Windows still
+> enforces a 260-character `MAX_PATH` by default, so cloning into an already-long
+> directory makes `pip install` fail partway through with:
+>
+> ```
+> ERROR: Could not install packages due to an OSError: [Errno 2]
+> No such file or directory: '...\onnxruntime\tools\ort_format_model\...'
+> HINT: This error might have occurred since this system does not have
+> Windows Long Path support enabled.
+> ```
+>
+> **This was hit during a clean-checkout rehearsal of this repository**, at a
+> checkout path of 113 characters. Either:
+>
+> - clone somewhere short — `C:\dev\cloudserve` works and installs in under three
+>   minutes; **or**
+> - enable long paths once, as administrator:
+>   `Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1`
+>   and restart.
+>
+> Nothing else in the install is path-sensitive. macOS and Linux are unaffected.
 
 > **Note on install size.** This project does *not* depend on `torch` or
 > `sentence-transformers`. `chromadb` ships `onnxruntime`, and its built-in

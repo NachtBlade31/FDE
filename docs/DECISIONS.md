@@ -1258,6 +1258,52 @@ their interval and labelled as unable to support inference — validation has se
 
 ---
 
+## D-43 · The clean-checkout rehearsal (A1) passes, with one Windows caveat
+
+**Tag:** `DEMO` · **Date:** 2026-09-08 · **Status:** Verified
+
+The Build Specification's test procedure was run against this repository, in
+order, from a clone into an empty directory. Roughly half of submissions are said
+to fail at step two.
+
+| Step | Result |
+|---|---|
+| 1. Clone into an empty directory | ✅ |
+| 2. Follow the README literally | ✅ |
+| 3. Create the environment and install | ✅ **2m48s**, no torch |
+| 4. Configure from `.env.example` | ✅ |
+| 5. Run the tests | ✅ **355 passed, 14 skipped, no API key needed** |
+| 6. Run the harness | ✅ 8/8 processed in 6.0s, all three output files written, log reconciles |
+
+The 14 skips are the tests requiring the full development and validation sets,
+which are deliberately not committed. They skip cleanly rather than failing, so
+the suite stays meaningful on a checkout that has only the sample data.
+
+**The one real finding: Windows `MAX_PATH`.** `onnxruntime` nests files about 120
+characters deep, and Windows still enforces a 260-character limit by default. The
+first rehearsal — at a checkout path of 113 characters — failed partway through
+`pip install`:
+
+```
+OSError: [Errno 2] No such file or directory:
+'...\onnxruntime	ools\ort_format_model\ort_flatbuffers_pybs\...'
+```
+
+Re-run at a 14-character path, the same install succeeded in 2m48s. This is
+documented at the top of the README with both remedies, because a grader on
+Windows could hit it and the error message does not obviously point at the cause.
+
+**Worth noting what this rehearsal did *not* find**, because that is the point of
+doing it: no missing step, no undocumented dependency, no path that existed only
+on my machine, and no test that needed credentials. The suite passing without an
+API key was a deliberate design choice on day one, and this is where it paid.
+
+> **Video line:** "I cloned my own repository into an empty folder and followed
+> my own README. It worked — except on Windows, where a deeply nested dependency
+> hits the old 260-character path limit. That is in the README now, with the fix."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |
