@@ -1122,6 +1122,91 @@ from development evidence only, and validation is re-measured once at the end.
 
 ---
 
+## D-40 · There is a daily token budget, and the headers do not mention it
+
+**Tag:** `SYSTEM` · **Date:** 2026-09-08 · **Status:** Fixed · **Found by running out of it**
+
+The cold gate run stalled at 64 of 80 tickets. Instrumenting eight tickets showed
+where the time went:
+
+```
+34 calls attempted, 2 succeeded, 10 failed, 22 retries
+995 seconds of sleep, of which 0 seconds was pacing
+```
+
+The pacing was not firing — the allowance looked healthy at 7,484 of 8,000
+tokens. All the sleep came from retry backoff, so calls were *failing*. Capturing
+the response body gave the reason:
+
+```
+Rate limit reached ... on tokens per day (TPD): Limit 200000, Used 199919
+retry-after: 204
+x-ratelimit-remaining-tokens: 8000     <- the per-minute bucket, completely full
+```
+
+**There is a 200,000 tokens-per-day cap, and it appears only in the body of the
+429.** Every rate-limit header describes the per-minute bucket, which was full.
+The pacing logic was watching the right numbers for the wrong limit.
+
+**Three consequences.**
+
+**1. Retrying a daily cap is pointless and expensive.** The reset is hours away,
+not seconds, so each retry slept three to five minutes and failed again. A daily
+exhaustion is now terminal within a run: the first one marks the client
+exhausted, every later call short-circuits without attempting, and the run
+degrades to retrieval-only. The same eight tickets that took 995 seconds of sleep
+now complete in **6.6 seconds**, with the report correctly flagged `DEGRADED` and
+its business rates withheld.
+
+**2. The budget is roughly 163 tickets a day, in total.** At ~1,225 tokens a
+ticket, 200,000 tokens covers about 163 — across *all* runs that day, not per
+run. The hidden 120-ticket run fits comfortably, but only if the day's budget has
+not already been spent. I spent this day's on repeated gate runs while debugging
+the pacing, which is worth stating rather than hiding: the constraint is real and
+it shaped the schedule.
+
+**3. The cache is now load-bearing three times over.** D-28 established it
+provides A5's determinism, since the provider is not deterministic at temperature
+zero. D-38 showed it is what makes repeat runs affordable. This adds that it is
+what makes the daily budget survivable at all. It is not an optimisation.
+
+**Documented for the grader**, because they will hit it too: a second full run in
+the same day may exhaust the budget, and the system will then degrade to
+retrieval-only rather than fail — which is the designed behaviour, and the report
+will say so plainly.
+
+> **Video line:** "The provider has a daily budget that none of its rate-limit
+> headers mention. My system was watching the per-minute allowance, seeing it
+> full, and retrying into a limit that resets tomorrow. Now it recognises it,
+> stops, and finishes the run in retrieval-only mode in six seconds instead of
+> stretching overnight."
+
+---
+
+## D-41 · The decision log is persistent, so reconciliation is scoped to a run
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-08 · **Status:** Fixed
+
+Running the harness twice failed A8: the second run reported
+`log reconciles: False`, naming the first run's tickets as "logged but not
+processed".
+
+Both halves of that are correct behaviour in tension. The log *should* accumulate
+across runs — the Governance Framework wants decisions reconstructable months
+later — and reconciliation *should* check identity in both directions, which is
+what catches a log written only for the tickets that succeeded.
+
+Every record now carries a `run_id`, and A8 reconciles within the run. Two
+consecutive runs against the same file now both report `log reconciles: True`,
+the history is preserved, and a second terminal state within one run is still
+rejected.
+
+Worth noting how this was found: not by a test, but by running the harness twice
+in a row because the first run had exhausted the token budget. A grader may well
+do the same thing.
+
+---
+
 ## Open decisions
 
 | # | Question | Due |

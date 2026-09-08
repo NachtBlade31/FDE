@@ -77,6 +77,7 @@ decisions = Table(
     Column("prompt_version", String(64), default=""),
     Column("requirement_ids", Text, default="[]"),
     Column("terminal_state", String(32), nullable=True, index=True),
+    Column("run_id", String(64), default="", index=True),
 )
 
 # Columns stored as JSON text, with the default used when a row predates the field.
@@ -121,7 +122,7 @@ class DecisionLog:
         created_at = record.created_at or datetime.now(timezone.utc)
 
         if record.terminal_state is not None:
-            existing = self._terminal_state_for(record.ticket_id)
+            existing = self._terminal_state_for(record.ticket_id, record.run_id)
             if existing is not None:
                 raise DuplicateTerminalStateError(
                     f"ticket {record.ticket_id} already has terminal state "
@@ -148,6 +149,7 @@ class DecisionLog:
             "prompt_version": record.prompt_version,
             "requirement_ids": _dump(record.requirement_ids),
             "terminal_state": record.terminal_state.value if record.terminal_state else None,
+            "run_id": record.run_id,
         }
 
         with self._engine.begin() as conn:
@@ -171,10 +173,13 @@ class DecisionLog:
         with self._engine.connect() as conn:
             return [self._to_record(row) for row in conn.execute(stmt)]
 
-    def _terminal_state_for(self, ticket_id: str) -> TerminalState | None:
+    def _terminal_state_for(
+        self, ticket_id: str, run_id: str = ""
+    ) -> TerminalState | None:
         stmt = (
             select(decisions.c.terminal_state)
             .where(decisions.c.ticket_id == ticket_id)
+            .where(decisions.c.run_id == run_id)
             .where(decisions.c.terminal_state.isnot(None))
             .limit(1)
         )
@@ -182,25 +187,32 @@ class DecisionLog:
             row = conn.execute(stmt).first()
         return TerminalState(row[0]) if row else None
 
-    def terminated_ticket_ids(self) -> set[str]:
-        """Tickets that reached a terminal state."""
+    def terminated_ticket_ids(self, run_id: str | None = None) -> set[str]:
+        """Tickets that reached a terminal state, optionally within one run."""
         stmt = (
             select(decisions.c.ticket_id)
             .where(decisions.c.terminal_state.isnot(None))
             .distinct()
         )
+        if run_id is not None:
+            stmt = stmt.where(decisions.c.run_id == run_id)
         with self._engine.connect() as conn:
             return {row[0] for row in conn.execute(stmt)}
 
-    def logged_ticket_ids(self) -> set[str]:
+    def logged_ticket_ids(self, run_id: str | None = None) -> set[str]:
         stmt = select(decisions.c.ticket_id).distinct()
+        if run_id is not None:
+            stmt = stmt.where(decisions.c.run_id == run_id)
         with self._engine.connect() as conn:
             return {row[0] for row in conn.execute(stmt)}
 
     # -- A8 reconciliation ---------------------------------------------------
 
     def reconcile(
-        self, processed_ticket_ids: Iterable[str], require_terminal: bool = False
+        self,
+        processed_ticket_ids: Iterable[str],
+        require_terminal: bool = False,
+        run_id: str | None = None,
     ) -> None:
         """Assert the log covers exactly the tickets processed, both directions.
 
@@ -213,11 +225,15 @@ class DecisionLog:
         a sent answer or a logged escalation. None are silently dropped."
         """
         processed = set(processed_ticket_ids)
-        logged = self.logged_ticket_ids()
+        logged = self.logged_ticket_ids(run_id)
 
         missing = sorted(processed - logged)
         unexpected = sorted(logged - processed)
-        unterminated = sorted(processed - self.terminated_ticket_ids()) if require_terminal else []
+        unterminated = (
+            sorted(processed - self.terminated_ticket_ids(run_id))
+            if require_terminal
+            else []
+        )
 
         if not missing and not unexpected and not unterminated:
             return
@@ -236,13 +252,17 @@ class DecisionLog:
 
     # -- volume counts (Build Spec section 04) -------------------------------
 
-    def terminal_counts(self) -> Counter[TerminalState]:
-        """Count tickets by terminal state. Intermediate records are excluded."""
-        stmt = select(decisions.c.terminal_state).where(decisions.c.terminal_state.isnot(None))
+    def terminal_counts(self, run_id: str | None = None) -> Counter[TerminalState]:
+        """Count tickets by terminal state, optionally within one run."""
+        stmt = select(decisions.c.terminal_state).where(
+            decisions.c.terminal_state.isnot(None)
+        )
+        if run_id is not None:
+            stmt = stmt.where(decisions.c.run_id == run_id)
         with self._engine.connect() as conn:
             return Counter(TerminalState(row[0]) for row in conn.execute(stmt))
 
-    def volume_counts(self) -> dict[str, int]:
+    def volume_counts(self, run_id: str | None = None) -> dict[str, int]:
         """The four counts Build Specification section 04 requires.
 
         `blocked_by_guardrails` is reported separately while still counting
@@ -252,7 +272,7 @@ class DecisionLog:
         count anyway is what makes that choice auditable rather than convenient:
         a reader can recompute the rates under either taxonomy.
         """
-        counts = self.terminal_counts()
+        counts = self.terminal_counts(run_id)
         auto = counts.get(TerminalState.AUTO_RESPONDED, 0)
         direct = counts.get(TerminalState.ESCALATED_DIRECT, 0)
         blocked = counts.get(TerminalState.ESCALATED_AFTER_BLOCK, 0)
@@ -261,7 +281,7 @@ class DecisionLog:
             # Distinct tickets, not terminal records. Write-time uniqueness makes
             # these equal, and deriving it this way means the metrics report
             # cannot silently disagree with the log even if that ever changes.
-            "processed": len(self.terminated_ticket_ids()),
+            "processed": len(self.terminated_ticket_ids(run_id)),
             "answered_automatically": auto,
             "escalated": direct + blocked,
             "blocked_by_guardrails": blocked,

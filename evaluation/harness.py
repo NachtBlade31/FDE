@@ -279,6 +279,9 @@ def run(
 
         client = LLMClient(settings, cache_path=storage / "cache")
 
+    # One identifier for this run, so A8 reconciles within it. The log is
+    # persistent and accumulates across runs by design.
+    run_id = started_id()
     log = DecisionLog(f"sqlite:///{storage / 'decisions.db'}")
     retriever = Retriever(
         Corpus.from_file(corpus_path or REPO / "data" / "documentation.json"),
@@ -291,6 +294,7 @@ def run(
         log=log,
         margin_threshold=settings.confidence_threshold,
         kill_switch=lambda: settings.kill_switch_engaged or Path(kill_path).exists(),
+        run_id=run_id,
     )
 
     started = datetime.now(timezone.utc)
@@ -330,12 +334,15 @@ def run(
     stats = getattr(client, "stats", None)
 
     try:
-        log.reconcile({o.ticket_id for o in outcomes}, require_terminal=True)
+        log.reconcile(
+            {o.ticket_id for o in outcomes}, require_terminal=True, run_id=run_id
+        )
         reconciles, reconcile_error = True, ""
     except ReconciliationError as exc:
         reconciles, reconcile_error = False, str(exc)
 
     run_meta = {
+        "run_id": run_id,
         "generated_at": started.isoformat(timespec="seconds"),
         "input_path": str(input_path),
         "output_path": str(output_path),
@@ -371,11 +378,18 @@ def run(
     report["governance"]["decisions_logged"] = len(
         [r for t in {o.ticket_id for o in outcomes} for r in log.records_for(t)]
     )
-    report["governance"]["tickets_in_log"] = len(log.logged_ticket_ids())
+    report["governance"]["tickets_in_log"] = len(log.logged_ticket_ids(run_id))
 
     _write(output_path, report, outcomes)
     report["_outcomes"] = outcomes
     return report
+
+
+def started_id() -> str:
+    """A short, sortable identifier for one run."""
+    import uuid
+
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:6]
 
 
 def _now() -> float:

@@ -563,3 +563,57 @@ def test_a_larger_observed_cost_still_causes_a_wait(tmp_path):
     client.complete("sys", "two", max_tokens=500)
 
     assert delays and delays[0] < LLMClient.MAX_PACING_SECONDS
+
+
+# --- the daily budget: a limit the headers do not carry ----------------------
+
+
+def test_a_daily_token_limit_is_not_retried(client):
+    """Discovered live: Groq's free tier has a 200,000 tokens-per-day cap that
+    appears ONLY in the 429 body. The rate-limit headers reported the
+    per-minute bucket as completely full while the day's budget was exhausted.
+
+    Retrying it is pointless - the reset is hours away, not seconds - and it
+    cost 995 seconds of sleep across eight tickets before this was understood.
+    """
+    from src.llm_client import ProviderQuotaExhausted
+
+    transport = RecordingTransport([ProviderQuotaExhausted("tokens per day (TPD)")] * 5)
+
+    result = client(transport).complete("sys", "user")
+
+    assert result.ok is False
+    assert len(transport.calls) == 1, "a daily cap must not be retried"
+
+
+def test_a_daily_limit_marks_the_run_degraded(client):
+    from src.llm_client import ProviderQuotaExhausted
+
+    c = client(RecordingTransport([ProviderQuotaExhausted("TPD")] * 3))
+    c.complete("sys", "user")
+
+    assert c.stats.degraded is True
+    assert c.stats.quota_exhausted is True
+
+
+def test_once_the_daily_budget_is_gone_later_calls_do_not_even_try(client):
+    """A9: the run must finish. Spending 5 minutes per ticket waiting for a
+    daily reset would turn a 12-minute run into an overnight one."""
+    from src.llm_client import ProviderQuotaExhausted
+
+    transport = RecordingTransport([ProviderQuotaExhausted("TPD")] * 10)
+    c = client(transport)
+
+    c.complete("sys", "one")
+    c.complete("sys", "two")
+    c.complete("sys", "three")
+
+    assert len(transport.calls) == 1, "later calls must short-circuit"
+
+
+def test_a_per_minute_rate_limit_is_still_retried(client):
+    """The daily cap is terminal; the per-minute one is transient."""
+    transport = RecordingTransport([ProviderRateLimited("429"), "recovered"])
+
+    assert client(transport).complete("sys", "user").ok is True
+    assert len(transport.calls) == 2

@@ -233,6 +233,10 @@ class DecisionRecord(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     ticket_id: str
     stage: Stage
+    # Which run produced this decision. The log is persistent and
+    # accumulates across runs by design - governance wants the history -
+    # so A8 reconciles within a run rather than over the whole file.
+    run_id: str = ""
 
     input_summary: str = ""
     model_name: str = ""

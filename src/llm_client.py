@@ -57,6 +57,21 @@ class ProviderUnavailable(ProviderError):
     """The provider could not be reached at all."""
 
 
+class ProviderQuotaExhausted(ProviderError):
+    """The account's budget for the period is spent. Not retryable in-run.
+
+    Discovered live: the free tier carries a 200,000 tokens-per-day cap that
+    appears ONLY in the body of the 429. The rate-limit headers reported the
+    per-minute bucket as completely full while the day's budget was gone, so
+    pacing was watching the wrong bucket and the retry loop waited three to
+    five minutes per call for a reset that was hours away.
+
+    A9 requires the run to finish. Treating this as terminal degrades the run
+    to retrieval-only in seconds instead of stretching it overnight, and the
+    report says plainly that the budget ran out.
+    """
+
+
 class ProviderConfigError(ProviderError):
     """The request is wrong and will never succeed: bad key, missing model.
 
@@ -94,6 +109,7 @@ class CallStats:
     cache_hits: int = 0
     retries: int = 0
     degraded: bool = False
+    quota_exhausted: bool = False
     paced_seconds: float = 0.0
     paced_count: int = 0
 
@@ -183,6 +199,11 @@ def _default_transport(
         raise ProviderUnavailable(str(exc)) from exc
 
     if response.status_code == 429:
+        body = response.text or ""
+        # The daily cap is only distinguishable from the per-minute one by
+        # reading the message; both are HTTP 429 and the headers look healthy.
+        if "per day" in body or "TPD" in body or "RPD" in body:
+            raise ProviderQuotaExhausted(body[:300])
         error = ProviderRateLimited("rate limited by provider")
         hint = response.headers.get("retry-after")
         if hint:
@@ -373,6 +394,14 @@ class LLMClient:
             self.stats.cache_hits += 1
             return CompletionResult(text=cached, ok=True, from_cache=True, attempts=0)
 
+        if self.stats.quota_exhausted:
+            # The budget is spent for the period. Every further call would
+            # cost a multi-minute wait and fail anyway.
+            return CompletionResult(
+                ok=False,
+                error="provider quota exhausted for the period; running retrieval-only",
+            )
+
         if not self.settings.has_model_access:
             self.stats.degraded = True
             return CompletionResult(
@@ -401,6 +430,13 @@ class LLMClient:
                     temperature=0,
                     max_tokens=max_tokens,
                     reasoning_effort=self.settings.reasoning_effort,
+                )
+            except ProviderQuotaExhausted as exc:
+                self.stats.failed += 1
+                self.stats.degraded = True
+                self.stats.quota_exhausted = True
+                return CompletionResult(
+                    ok=False, attempts=attempts, error=f"{type(exc).__name__}: {exc}"
                 )
             except ProviderConfigError as exc:
                 # Not transient. Fail immediately rather than burning retries.

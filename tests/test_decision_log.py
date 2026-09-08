@@ -321,3 +321,72 @@ def test_reconcile_rejects_a_ticket_that_was_processed_but_never_terminated(log)
 
     with pytest.raises(ReconciliationError, match="DEV-0002"):
         log.reconcile({"DEV-0001", "DEV-0002"}, require_terminal=True)
+
+
+# --- the log is persistent, so reconciliation must be scoped to a run --------
+
+
+def test_reconciliation_is_scoped_to_one_run(log):
+    """The log accumulates across runs on purpose — governance wants the history.
+
+    But A8 reconciles *this* run's decisions against *this* run's tickets. Without
+    a run identifier, a second run against a different file fails reconciliation
+    because the first run's tickets are still in the log, which is exactly what
+    happened when the harness was run twice.
+    """
+    log.write(_record("OLD-0001", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED,
+                      run_id="run-a"))
+    log.write(_record("NEW-0001", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED,
+                      run_id="run-b"))
+
+    log.reconcile({"NEW-0001"}, run_id="run-b", require_terminal=True)
+
+
+def test_an_unscoped_reconciliation_still_sees_everything(log):
+    """Without a run id the check is over the whole log, as before."""
+    log.write(_record("OLD-0001", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED))
+    log.write(_record("NEW-0001", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED))
+
+    with pytest.raises(ReconciliationError, match="OLD-0001"):
+        log.reconcile({"NEW-0001"})
+
+
+def test_a_missing_ticket_within_the_run_still_fails(log):
+    """Scoping must not weaken the check it exists to make."""
+    log.write(_record("NEW-0001", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED,
+                      run_id="run-b"))
+
+    with pytest.raises(ReconciliationError, match="NEW-0002"):
+        log.reconcile({"NEW-0001", "NEW-0002"}, run_id="run-b", require_terminal=True)
+
+
+def test_terminal_counts_can_be_scoped_to_a_run(log):
+    log.write(_record("OLD-1", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED,
+                      run_id="run-a"))
+    log.write(_record("NEW-1", Stage.VALIDATION, terminal_state=TerminalState.ESCALATED_DIRECT,
+                      run_id="run-b"))
+
+    counts = log.terminal_counts(run_id="run-b")
+
+    assert counts[TerminalState.ESCALATED_DIRECT] == 1
+    assert TerminalState.AUTO_RESPONDED not in counts
+
+
+def test_the_same_ticket_id_may_recur_in_a_later_run(log):
+    """Re-running the same file must not trip the one-terminal-state rule."""
+    log.write(_record("DEV-0001", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED,
+                      run_id="run-a"))
+
+    log.write(_record("DEV-0001", Stage.VALIDATION, terminal_state=TerminalState.ESCALATED_DIRECT,
+                      run_id="run-b"))
+
+    assert len(log.records_for("DEV-0001")) == 2
+
+
+def test_a_second_terminal_state_within_one_run_is_still_rejected(log):
+    log.write(_record("DEV-0001", Stage.VALIDATION, terminal_state=TerminalState.AUTO_RESPONDED,
+                      run_id="run-a"))
+
+    with pytest.raises(DuplicateTerminalStateError):
+        log.write(_record("DEV-0001", Stage.VALIDATION,
+                          terminal_state=TerminalState.ESCALATED_DIRECT, run_id="run-a"))

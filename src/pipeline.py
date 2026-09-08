@@ -88,12 +88,16 @@ class Pipeline:
         abstention_floor: float = DEFAULT_ABSTENTION_FLOOR,
         kill_switch: Callable[[], bool] | None = None,
         top_k: int = 3,
+        run_id: str = "",
     ) -> None:
         self.client = client
         self._kill_switch = kill_switch or (lambda: False)
         self.retriever = retriever
         self.log = log
         self.top_k = top_k
+        # Stamped on every record so A8 reconciles within this run. The log
+        # is persistent and accumulates across runs by design.
+        self.run_id = run_id
         self.classifier = Classifier(client)
         self.generator = Generator(client)
         self.router = Router(
@@ -400,6 +404,7 @@ class Pipeline:
         wrote_terminal = False
         for record in records:
             record.ticket_id = record.ticket_id or outcome.ticket_id
+            record.run_id = self.run_id
             if record.terminal_state:
                 if wrote_terminal:
                     record.terminal_state = None
@@ -415,6 +420,7 @@ class Pipeline:
                 self.log.write(
                     DecisionRecord(
                         ticket_id=outcome.ticket_id,
+                        run_id=self.run_id,
                         stage=Stage.VALIDATION,
                         action_taken=outcome.terminal_state.value,
                         reason=outcome.reason or "Terminal state recorded.",
