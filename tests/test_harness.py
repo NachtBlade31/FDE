@@ -30,11 +30,15 @@ from evaluation.harness import build_report, run
 
 
 class StubClient:
-    def __init__(self, replies=None, ok=True):
+    """Stands in for LLMClient. `from_cache` makes it report cache hits, which is
+    how a warm rehearsal is simulated without running one."""
+
+    def __init__(self, replies=None, ok=True, from_cache=False):
         from src.llm_client import CallStats
 
         self._replies = list(replies or [])
         self._ok = ok
+        self._from_cache = from_cache
         self.stats = CallStats()
 
     def complete(self, system, user, max_tokens=512):
@@ -42,8 +46,14 @@ class StubClient:
 
         if not self._ok:
             self.stats.degraded = True
+            self.stats.attempted += 1
             return CompletionResult(ok=False, error="provider unavailable")
         text = self._replies.pop(0) if self._replies else _CLASSIFY
+        if self._from_cache:
+            self.stats.cache_hits += 1
+            return CompletionResult(text=text, ok=True, from_cache=True)
+        self.stats.attempted += 1
+        self.stats.succeeded += 1
         return CompletionResult(text=text, ok=True)
 
 
@@ -342,3 +352,50 @@ def test_build_report_is_pure_and_needs_no_run(paths):
     report = _run(paths)
 
     assert build_report(report["_outcomes"], report["run"])["volume"] == report["volume"]
+
+
+# --- a report must not present a cache replay as a timing measurement --------
+
+
+def test_the_report_flags_when_most_work_came_from_cache(paths, tmp_path):
+    """The same class of error as D-30, in the file the grader actually runs.
+
+    A cache hit replays a real completion, so the functional results stay valid.
+    Latency and provider-call counts do not: they measure dictionary lookups. The
+    hidden run has a cold cache by definition, so a warm rehearsal must not be
+    reported as though it characterised it.
+    """
+    source, out = paths()
+    shared = out / "storage"
+
+    run(input_path=source, output_path=out, client=StubClient([_CLASSIFY, _ANSWER] * 60),
+        storage_path=shared)
+    second = run(
+        input_path=source,
+        output_path=out,
+        client=StubClient([_CLASSIFY, _ANSWER] * 60, from_cache=True),
+        storage_path=shared,
+    )
+
+    assert second["run"]["cache_replay"] is True
+    assert second["technical"]["processing_latency_p95_seconds"] is None
+    assert second["technical"]["latency_withheld_reason"]
+
+
+def test_a_cold_run_reports_its_latency(paths):
+    report = _run(paths)
+
+    assert report["run"]["cache_replay"] is False
+    assert report["technical"]["processing_latency_p95_seconds"] is not None
+
+
+def test_the_markdown_says_so_when_latency_is_withheld(paths, tmp_path):
+    source, out = paths()
+    shared = out / "storage"
+    run(input_path=source, output_path=out, client=StubClient([_CLASSIFY, _ANSWER] * 60),
+        storage_path=shared)
+    run(input_path=source, output_path=out,
+        client=StubClient([_CLASSIFY, _ANSWER] * 60, from_cache=True), storage_path=shared)
+
+    text = (out / "report.md").read_text("utf-8")
+    assert "cache" in text.lower()

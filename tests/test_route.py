@@ -503,3 +503,16 @@ def test_the_shipped_vocabulary_covers_the_two_groundable_deny_list_intents():
 
     assert {"breach", "compromised", "unauthorised"} <= markers  # security
     assert {"audit", "compliance", "retention", "residency"} <= markers  # compliance
+
+
+def test_markers_that_catch_nothing_are_not_shipped():
+    """A marker with zero true positives is noise wearing a control's name.
+
+    Measured on the 500 development tickets: 'planned' caught 0 deny-listed
+    tickets while causing 5 false escalations, and 'request' caught 2 - neither
+    groundable - while causing 6. Removing both saved 11 false escalations with
+    no change to deny-list recall.
+    """
+    from src.route import load_markers
+
+    assert {"planned", "request"} & load_markers() == set()

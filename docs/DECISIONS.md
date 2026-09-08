@@ -1054,6 +1054,74 @@ precisely this: the defect is invisible until the whole pipeline runs at volume.
 
 ---
 
+## D-39 · Two markers were costing coverage and buying no safety
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Fixed · **Measured**
+
+The gate run missed the first contact resolution target (48.8% against 60%), and
+"the splits diverge" was too passive an answer. Diagnosing it on the development
+set found a real defect of my own.
+
+Per-marker cost and benefit across all 500 development tickets:
+
+| marker | deny-listed tickets caught | false escalations | groundable catches |
+|---|---|---|---|
+| `audit` | 22 | 0 | 22 |
+| `retention` | 24 | 0 | 14 |
+| `breach` | 10 | 0 | 10 |
+| **`planned`** | **0** | **5** | 0 |
+| **`request`** | 2 | **6** | **0** |
+
+`planned` caught **nothing at all** while causing five false escalations.
+`request` caught two — neither of them groundable, so both were already protected
+structurally — while causing six. Both are generic English that happens to
+correlate with deny-list templates, which is exactly the argument D-27 used to
+reject `only`, `call` and `nobody` from the derived vocabulary. I let two through
+under a curated label.
+
+**Removing them saves 11 false escalations with no loss of safety whatsoever:**
+
+| | before | after |
+|---|---|---|
+| false escalations (dev) | 25 | **14** |
+| deny-list recall | 67/87 | **67/87 — unchanged** |
+| `security_incident` | 26/26 | **26/26** |
+| `compliance_request` | 26/26 | **26/26** |
+
+Development FCR rises from 62.5% to **64.0%**, with governance violations still
+zero at every threshold.
+
+**A second finding: the parameters interact.** The margin sweep had to be re-run,
+because the previous derivation was against the old vocabulary. The curve
+changed shape:
+
+| margin | FCR | route acc | auto precision |
+|---|---|---|---|
+| ≤0.60 | 65.5% | 78.0% | 77.9% |
+| 0.70–0.75 | 64.5% | 78.0% | 78.3% |
+| 0.80–0.85 | 64.0% | 77.5% | 78.1% |
+| 0.90 | 8.0% | 46.5% | 81.2% (cliff) |
+
+0.70 to 0.85 now spans 0.5 points on every measure — inside the ±1.5 point
+run-to-run variance established in D-28. **So it is now genuinely a plateau, and
+0.85 is the conservative end of it before the cliff at 0.90.** D-35 corrected me
+for calling it a plateau when it was a slope; after this fix the description has
+become accurate, which is a coincidence worth stating rather than quietly
+enjoying.
+
+**What this does not fix.** Development FCR of 64.0% is against a development
+label ceiling of 62.2% auto-respond — so on that split we are effectively at the
+ceiling. Validation's ceiling is 60%, and the gate measured 48.8%. The remaining
+gap is on validation, and it will not be chased: the Project Brief forbids tuning
+against it, and the hidden set is drawn from its population. Fixes are derived
+from development evidence only, and validation is re-measured once at the end.
+
+> **Video line:** "The system missed its resolution target, and my first instinct
+> was to blame the data. Two of my own safety markers turned out to be costing
+> eleven escalations and catching nothing. One of them was the word 'planned'."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |

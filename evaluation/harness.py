@@ -62,6 +62,12 @@ COLLAPSE_THRESHOLD = 0.95
 COLLAPSE_MIN_SAMPLE = 20
 FALLBACK_ALARM_RATE = 0.50
 
+# Above this share of cache hits, the run is a replay and its timing describes
+# dictionary lookups rather than the system. Functional results stay valid - a
+# cache hit replays a real completion - but the hidden run has a cold cache by
+# definition, so a warm rehearsal must not be reported as characterising it.
+CACHE_REPLAY_SHARE = 0.50
+
 
 def _percentile(values: list[float], fraction: float) -> float:
     if not values:
@@ -92,6 +98,7 @@ def build_report(outcomes: list[TicketOutcome], run_meta: dict[str, Any]) -> dic
     withheld = degraded or collapsed
 
     latencies = [o.latency_seconds for o in outcomes]
+    replay = bool(run_meta.get("cache_replay"))
     business: dict[str, Any] = {
         "first_contact_resolution": None if withheld else (auto / total if total else 0.0),
         "escalation_rate": None if withheld else ((direct + blocked) / total if total else 0.0),
@@ -154,8 +161,20 @@ def build_report(outcomes: list[TicketOutcome], run_meta: dict[str, Any]) -> dic
             citation_resolved / len(cited) if cited else None
         ),
         "answers_with_citations": len(cited),
-        "processing_latency_mean_seconds": statistics.mean(latencies) if latencies else 0.0,
-        "processing_latency_p95_seconds": _percentile(latencies, 0.95),
+        "processing_latency_mean_seconds": (
+            None if replay else (statistics.mean(latencies) if latencies else 0.0)
+        ),
+        "processing_latency_p95_seconds": None if replay else _percentile(latencies, 0.95),
+        "latency_withheld_reason": (
+            (
+                "Withheld: most of this run was served from cache, so these figures would measure "
+                "dictionary lookups rather than the system. Clear the cache directory and re-run "
+                "for a latency measurement. The functional results above remain valid, because a "
+                "cache hit replays a real completion."
+            )
+            if replay
+            else None
+        ),
         "latency_note": (
             "Processing latency per ticket. Wall clock for the whole run includes waiting "
             "for the provider's token allowance to reset and is reported under run."
@@ -338,6 +357,11 @@ def run(
         "provider_calls_attempted": getattr(stats, "attempted", 0),
         "provider_calls_succeeded": getattr(stats, "succeeded", 0),
         "cache_hits": getattr(stats, "cache_hits", 0),
+        "cache_replay": (
+            getattr(stats, "cache_hits", 0)
+            > CACHE_REPLAY_SHARE
+            * max(1, getattr(stats, "cache_hits", 0) + getattr(stats, "attempted", 0))
+        ),
         "rate_limit_pacing_seconds": round(getattr(stats, "paced_seconds", 0.0), 1),
     }
 
@@ -406,8 +430,22 @@ def _markdown(report: dict[str, Any]) -> str:
         f"relevance floor {run_meta['relevance_floor']}",
         f"- wall clock: {run_meta['wall_clock_seconds']}s "
         f"(of which {run_meta['rate_limit_pacing_seconds']}s rate-limit pacing)",
+        f"- provider calls: {run_meta['provider_calls_attempted']} attempted, "
+        f"{run_meta['cache_hits']} served from cache",
         "",
     ]
+
+    if run_meta.get("cache_replay"):
+        lines += [
+            "## ⚠ TIMING WITHHELD — THIS RUN WAS LARGELY A CACHE REPLAY",
+            "",
+            "Most classifications and answers were replayed from cache, so latency and",
+            "provider-call counts would describe dictionary lookups rather than the",
+            "system. The functional results below remain valid: a cache hit replays a",
+            "real completion. The hidden evaluation run has a cold cache by definition,",
+            "so clear `storage/cache` and re-run to measure timing.",
+            "",
+        ]
 
     if run_meta["degraded"] or run_meta["distribution_collapsed"]:
         lines += [
@@ -457,7 +495,11 @@ def _markdown(report: dict[str, Any]) -> str:
         f"| Classification accuracy | ≥ 85% | {pct(technical['classification_accuracy'])} |",
         f"| Retrieval hit rate | — | {pct(technical['retrieval_hit_rate_at_k'])} |",
         f"| Citation resolution | 100% | {pct(technical['citation_resolution_rate'])} |",
-        f"| Processing latency p95 | < 3s | {technical['processing_latency_p95_seconds']:.2f}s |",
+        (
+            "| Processing latency p95 | < 3s | withheld (cache replay) |"
+            if technical["processing_latency_p95_seconds"] is None
+            else f"| Processing latency p95 | < 3s | {technical['processing_latency_p95_seconds']:.2f}s |"
+        ),
         f"| Classification fallback rate | — | {technical['classification_fallback_rate']:.1%} |",
         "",
         "## Governance",
