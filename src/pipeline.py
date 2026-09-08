@@ -53,6 +53,7 @@ class TicketOutcome:
     latency_seconds: float = 0.0
     degraded: bool = False
     stages_run: tuple[str, ...] = ()
+    failures: tuple[str, ...] = ()
 
     @property
     def escalated(self) -> bool:
@@ -72,6 +73,7 @@ class _State:
     records: list[DecisionRecord] = field(default_factory=list)
     outcome: TicketOutcome | None = None
     stages: list[str] = field(default_factory=list)
+    failures: list[str] = field(default_factory=list)
 
 
 class Pipeline:
@@ -106,17 +108,48 @@ class Pipeline:
 
     # -- the graph -------------------------------------------------------------
 
+    def _contained(self, name, node, recover):
+        """Run a node so that its failure costs only that node.
+
+        Catching only at the top of the graph was not enough. A11 asks the
+        system to *degrade and continue*, and a classification failure that
+        aborts the graph also loses retrieval — so the escalation arrives
+        without the documentation that the retrieval-only fallback exists to
+        attach. Retrieval is local and has no reason to fail just because the
+        model provider did.
+
+        Each node therefore recovers into a defined state and the pipeline
+        carries on to the next stage.
+        """
+
+        def run(state: _State) -> _State:
+            try:
+                return node(state)
+            except Exception as exc:  # noqa: BLE001 - A11: continue, do not stop
+                state.failures.append(f"{name}: {type(exc).__name__}: {exc}")
+                return recover(state)
+
+        return run
+
     def _build_graph(self):
         """Wire the six components. Escalation short-circuits generation."""
         from langgraph.graph import END, StateGraph
 
         graph = StateGraph(_State)
-        graph.add_node("ingest", self._ingest)
-        graph.add_node("classify", self._classify)
-        graph.add_node("retrieve", self._retrieve)
-        graph.add_node("route", self._route)
-        graph.add_node("generate", self._generate)
-        graph.add_node("validate", self._validate)
+        graph.add_node("ingest", self._contained("ingest", self._ingest, self._recover_ingest))
+        graph.add_node(
+            "classify", self._contained("classify", self._classify, self._recover_classify)
+        )
+        graph.add_node(
+            "retrieve", self._contained("retrieve", self._retrieve, self._recover_retrieve)
+        )
+        graph.add_node("route", self._contained("route", self._route, self._recover_route))
+        graph.add_node(
+            "generate", self._contained("generate", self._generate, self._recover_generate)
+        )
+        graph.add_node(
+            "validate", self._contained("validate", self._validate, self._recover_validate)
+        )
 
         graph.set_entry_point("ingest")
         graph.add_conditional_edges(
@@ -134,6 +167,54 @@ class Pipeline:
         graph.add_edge("generate", "validate")
         graph.add_edge("validate", END)
         return graph.compile()
+
+    # -- recovery: what each node degrades to ---------------------------------
+
+    @staticmethod
+    def _recover_ingest(state: _State) -> _State:
+        state.outcome = TicketOutcome(
+            ticket_id=_fallback_id(state.raw),
+            terminal_state=TerminalState.ESCALATED_DIRECT,
+            reason="Could not be read as a ticket; escalated so it is not lost.",
+        )
+        return state
+
+    @staticmethod
+    def _recover_classify(state: _State) -> _State:
+        # The fallback class is itself deny-listed, so failing to classify and
+        # failing safely are the same path. Retrieval still runs.
+        state.classification = _fallback_classification(state)
+        return state
+
+    @staticmethod
+    def _recover_retrieve(state: _State) -> _State:
+        state.retrieval = RetrievalResult(passages=[], rejected=[], top_score=0.0, floor_applied=0.0)
+        return state
+
+    def _recover_route(self, state: _State) -> _State:
+        state.outcome = TicketOutcome(
+            ticket_id=state.ticket.ticket_id if state.ticket else _fallback_id(state.raw),
+            terminal_state=TerminalState.ESCALATED_DIRECT,
+            reason="Routing failed; escalated for human handling.",
+            escalation=_context_from(state, GeneratedAnswer(reason="Routing failed.")),
+        )
+        return state
+
+    @staticmethod
+    def _recover_generate(state: _State) -> _State:
+        state.answer = GeneratedAnswer(reason="Generation failed; no draft was produced.")
+        return state
+
+    def _recover_validate(self, state: _State) -> _State:
+        # Validation failing means nothing was checked, so nothing may be sent.
+        state.outcome = TicketOutcome(
+            ticket_id=state.ticket.ticket_id if state.ticket else _fallback_id(state.raw),
+            terminal_state=TerminalState.ESCALATED_AFTER_BLOCK,
+            reason="Validation failed, so the response was withheld and escalated.",
+            blocked_by=("validation_error",),
+            escalation=_context_from(state, state.answer or GeneratedAnswer()),
+        )
+        return state
 
     # -- nodes -----------------------------------------------------------------
 
@@ -304,6 +385,7 @@ class Pipeline:
         outcome.routing = state.routing
         outcome.answer = state.answer
         outcome.stages_run = tuple(state.stages)
+        outcome.failures = tuple(state.failures)
         outcome.degraded = bool(getattr(self.client, "stats", None) and self.client.stats.degraded)
 
         self._write_log(outcome, state.records)
@@ -342,6 +424,17 @@ class Pipeline:
                 )
             except Exception:  # noqa: BLE001
                 pass
+
+
+def _fallback_classification(state: _State) -> Classification:
+    """The safe class. It is deny-listed, so it routes to a human."""
+    from src.classify import UNCLEAR
+
+    return Classification(
+        ticket_id=state.ticket.ticket_id if state.ticket else "",
+        intent=UNCLEAR,
+        fallback_reason="Classification raised; degraded to the safe class.",
+    )
 
 
 def _context_from(state: _State, answer: GeneratedAnswer) -> EscalationContext:
