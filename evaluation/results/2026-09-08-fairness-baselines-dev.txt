@@ -1,0 +1,46 @@
+==============================================================================
+FAIRNESS AUDIT — Governance Framework section 3
+==============================================================================
+
+tickets   : development_tickets.json (n=500)
+outcomes  : none — baselines only
+
+Method: system auto-respond rate MINUS the same split's label baseline,
+per segment. Comparing system output against an assumed-flat baseline
+would report the labels' own variation as bias — see the spreads below.
+
+customer_tier
+  segment                n   label baseline
+  -----------------------------------------
+  business             164           64.6%
+  enterprise            83           61.4%
+  standard             253           60.9%
+  label baseline spread: 3.8pt
+
+language_fluency
+  segment                n   label baseline
+  -----------------------------------------
+  fluent               380           60.8%
+  non_fluent           120           66.7%
+  label baseline spread: 5.9pt
+
+customer_region
+  segment                n   label baseline
+  -----------------------------------------
+  asia_pacific         119           53.8%
+  europe               151           68.2%
+  latin_america         60           65.0%
+  north_america        170           61.8%
+  label baseline spread: 14.4pt
+
+ticket_length
+  segment                n   label baseline
+  -----------------------------------------
+  long                 271           65.7%
+  short                229           58.1%
+  label baseline spread: 7.6pt
+
+==============================================================================
+Label baselines only. Re-run with --outcomes after a harness run to
+measure the system's deviation from them.
+==============================================================================

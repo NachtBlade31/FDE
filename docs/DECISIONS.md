@@ -1207,6 +1207,57 @@ do the same thing.
 
 ---
 
+## D-42 · The fairness baseline is not flat, and its ordering inverts between splits
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-08 · **Status:** Confirmed · **Measured**
+
+The Governance Framework asks for variation across customer groups to stay under
+five percentage points. The obvious reading is to measure the system's rate per
+segment and check the spread. Measured against the *labels alone*, before any
+system exists:
+
+| segment | dev spread | validation spread |
+|---|---|---|
+| `customer_region` | **14.4pt** | **28.6pt** |
+| `ticket_length` | 7.6pt | — |
+| `language_fluency` | 5.9pt | **23.5pt** |
+| `customer_tier` | 3.8pt | — |
+
+**Three of four segments already exceed the governance condition in the labels
+themselves.** A system that mirrored the labels perfectly would be reported as
+biased. So measuring system output against an assumed-flat baseline does not
+measure fairness — it measures the data's structure.
+
+**Worse, the ordering inverts between splits:**
+
+| | dev | validation |
+|---|---|---|
+| non-fluent vs fluent | 66.7% vs 60.8% — *better* | 42.1% vs 65.6% — 23.5pt *worse* |
+| `asia_pacific` | 53.8%, the **lowest** region | 71.4%, the **highest** region |
+
+There is no stable per-segment baseline in this data. A fairness claim measured
+on development would be not merely imprecise on validation but **backwards**.
+
+This is precisely why design section 2.4 pre-registered the method as *system
+outcome minus the same split's label baseline*, fixed before any result was
+known. That decision was made defensively after the validator caught me
+generalising a dev-only result; this measurement shows it was necessary rather
+than cautious.
+
+**Consequence for the report:** the fairness audit reports a delta against the
+split it was measured on, states the baseline alongside it, and does not
+generalise across splits. Segments with fewer than ten tickets are reported with
+their interval and labelled as unable to support inference — validation has seven
+`latin_america` tickets, whose 95% interval spans 16% to 75%.
+
+> **Video line:** "The framework asks whether some customers get worse answers,
+> and says the gap should be under five points. In this data three of the four
+> groupings are already further apart than that in the labels — before my system
+> touches anything. And on the other split the ordering flips: the region that
+> does worst on one is the region that does best on the other."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |
