@@ -1,0 +1,200 @@
+{
+  "run": {
+    "run_id": "20260908T123457-8d9e6f",
+    "generated_at": "2026-09-08T12:35:03+00:00",
+    "input_path": "..\\FDE_Capstone_Complete-20260821T084330Z-1-001\\FDE_Capstone_Complete\\Capstone_Pack\\05_Datasets\\validation_tickets.json",
+    "output_path": "evaluation\\results\\gate-run",
+    "ticket_count": 80,
+    "model": "openai/gpt-oss-20b",
+    "provider": "groq",
+    "confidence_threshold": 0.85,
+    "relevance_floor": 0.4,
+    "wall_clock_seconds": 35.6,
+    "degraded": true,
+    "distribution_collapsed": false,
+    "collapse_signal": null,
+    "classification_fallback_rate": 0.2875,
+    "dominant_predicted_class": "unclear_request",
+    "provider_calls_attempted": 1,
+    "provider_calls_succeeded": 0,
+    "cache_hits": 87,
+    "cache_replay": true,
+    "rate_limit_pacing_seconds": 0.0
+  },
+  "volume": {
+    "processed": 80,
+    "answered_automatically": 29,
+    "escalated": 51,
+    "blocked_by_guardrails": 0,
+    "escalated_without_a_block": 51
+  },
+  "business": {
+    "first_contact_resolution": null,
+    "escalation_rate": null,
+    "mean_seconds_to_reply": null,
+    "median_seconds_to_reply": null,
+    "repeat_contacts": null,
+    "repeat_contacts_note": "Not measurable. Same-customer, same-intent within seven days yields 2 pairs across 500 development tickets. A single pass over independent tickets cannot produce this figure; reporting one would be fabrication.",
+    "satisfaction_proxy": null,
+    "satisfaction_proxy_note": "Requires rubric-scored human review of a sample; not produced by this run.",
+    "withheld_reason": "Business rates are withheld because the run was degraded or its predictions collapsed onto a single class. A broken run and a very conservative working system produce identical output, and publishing a 100% escalation rate as though it were a result would misrepresent both."
+  },
+  "technical": {
+    "classification_accuracy": 0.625,
+    "classification_fallback_rate": 0.2875,
+    "per_class": {
+      "account_access": {
+        "n": 4,
+        "accuracy": 0.25
+      },
+      "api_key_issue": {
+        "n": 6,
+        "accuracy": 0.6666666666666666
+      },
+      "api_usage_question": {
+        "n": 4,
+        "accuracy": 0.5
+      },
+      "authentication_failure": {
+        "n": 3,
+        "accuracy": 0.6666666666666666
+      },
+      "billing_query": {
+        "n": 10,
+        "accuracy": 0.6
+      },
+      "compliance_request": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "configuration_help": {
+        "n": 3,
+        "accuracy": 0.6666666666666666
+      },
+      "data_export": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "data_residency": {
+        "n": 6,
+        "accuracy": 0.16666666666666666
+      },
+      "database_issue": {
+        "n": 1,
+        "accuracy": 0.0
+      },
+      "deployment_failure": {
+        "n": 5,
+        "accuracy": 0.6
+      },
+      "feature_request": {
+        "n": 3,
+        "accuracy": 0.6666666666666666
+      },
+      "integration_help": {
+        "n": 3,
+        "accuracy": 0.3333333333333333
+      },
+      "onboarding": {
+        "n": 4,
+        "accuracy": 1.0
+      },
+      "performance_degradation": {
+        "n": 3,
+        "accuracy": 1.0
+      },
+      "quota_or_overage": {
+        "n": 2,
+        "accuracy": 0.5
+      },
+      "rate_limit": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "rollback_request": {
+        "n": 6,
+        "accuracy": 1.0
+      },
+      "security_incident": {
+        "n": 4,
+        "accuracy": 0.5
+      },
+      "sso_configuration": {
+        "n": 1,
+        "accuracy": 0.0
+      },
+      "unclear_request": {
+        "n": 6,
+        "accuracy": 1.0
+      },
+      "webhook_issue": {
+        "n": 3,
+        "accuracy": 0.3333333333333333
+      }
+    },
+    "retrieval_hit_rate_at_k": 0.9433962264150944,
+    "retrieval_eligible_tickets": 53,
+    "citation_resolution_rate": 1.0,
+    "answers_with_citations": 29,
+    "processing_latency_mean_seconds": null,
+    "processing_latency_p95_seconds": null,
+    "latency_withheld_reason": "Withheld: most of this run was served from cache, so these figures would measure dictionary lookups rather than the system. Clear the cache directory and re-run for a latency measurement. The functional results above remain valid, because a cache hit replays a real completion.",
+    "latency_note": "Processing latency per ticket. Wall clock for the whole run includes waiting for the provider's token allowance to reset and is reported under run."
+  },
+  "governance": {
+    "deny_list_violations": 0,
+    "deny_list_violation_ids": [],
+    "deny_list_condition_holds": true,
+    "private_data_occurrences_in_released_text": 0,
+    "responses_blocked_for_private_data": 0,
+    "guardrail_activations": {},
+    "segments": {
+      "customer_tier": {
+        "business": {
+          "n": 30,
+          "auto_respond_rate": 0.4666666666666667
+        },
+        "enterprise": {
+          "n": 8,
+          "auto_respond_rate": 0.375
+        },
+        "standard": {
+          "n": 42,
+          "auto_respond_rate": 0.2857142857142857
+        }
+      },
+      "language_fluency": {
+        "fluent": {
+          "n": 61,
+          "auto_respond_rate": 0.36065573770491804
+        },
+        "non_fluent": {
+          "n": 19,
+          "auto_respond_rate": 0.3684210526315789
+        }
+      },
+      "customer_region": {
+        "asia_pacific": {
+          "n": 21,
+          "auto_respond_rate": 0.2857142857142857
+        },
+        "europe": {
+          "n": 25,
+          "auto_respond_rate": 0.44
+        },
+        "latin_america": {
+          "n": 7,
+          "auto_respond_rate": 0.14285714285714285
+        },
+        "north_america": {
+          "n": 27,
+          "auto_respond_rate": 0.4074074074074074
+        }
+      }
+    },
+    "decision_log_reconciles": true,
+    "decision_log_reconcile_error": "",
+    "decisions_logged": 302,
+    "tickets_in_log": 80
+  }
+}
