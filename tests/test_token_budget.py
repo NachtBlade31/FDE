@@ -101,13 +101,14 @@ def test_recording_creates_the_directory(tmp_path):
     assert (tmp_path / "deep" / "nested" / "ledger.json").exists()
 
 
-def test_zero_or_negative_tokens_are_not_recorded(ledger):
+def test_zero_or_negative_tokens_add_nothing_to_the_spend(ledger):
     ledger.record(0)
     ledger.record(-5)
 
     assert ledger.view().spent == 0
-    # A run that recorded nothing must not create a run entry either.
-    assert not ledger.path.exists() or json.loads(ledger.path.read_text()) == {}
+    # The entries exist — a zero-token run is still a run, and must be able to
+    # close its in-flight marker — but they contribute no spend.
+    assert json.loads(ledger.path.read_text())[utc_day()]["tokens"] == 0
 
 
 def test_the_cap_is_the_figure_from_the_429_body(tmp_path):
@@ -266,3 +267,94 @@ def test_the_default_ledger_path_is_anchored_to_the_repository(monkeypatch, tmp_
     assert DEFAULT_LEDGER.parent.name == "storage"
     # And nothing was created under the unrelated working directory.
     assert not (tmp_path / "storage").exists()
+
+
+# --------------------------------------------------------------------------
+# failing closed
+# --------------------------------------------------------------------------
+#
+# The ledger's whole contract is asymmetric: it may rule a run out, it may never
+# wave one through on a gap in its own records. Three ways it used to break that.
+
+
+def test_an_unreadable_ledger_rules_a_run_out(tmp_path):
+    path = tmp_path / "ledger.json"
+    path.write_text("{not json", encoding="utf-8")
+
+    view = TokenLedger(path=path, cap=200_000).view()
+    assert not view.complete
+    assert not view.fits(1), "unknown spend must not read as available budget"
+
+
+def test_a_run_still_in_flight_rules_a_run_out(ledger):
+    ledger.begin()
+
+    assert not ledger.view().fits(1)
+    assert "refused on incomplete records" in ledger.view().explain(127_132)
+
+
+def test_a_truncated_ledger_is_not_rebuilt_as_a_blank_day(tmp_path):
+    """A kill mid-write left a partial file; the recovery path then rewrote it
+    from scratch, discarding every earlier day — including an `exhausted` flag
+    a 429 had put there — and presenting the result as a clean slate."""
+    path = tmp_path / "ledger.json"
+    led = TokenLedger(path=path, cap=200_000)
+    led.record(47_774, day="2026-09-08", exhausted=True)
+
+    path.write_text("", encoding="utf-8")   # process killed mid-write
+    led.begin(day="2026-09-08")             # the next run starts
+
+    assert path.read_text(encoding="utf-8") == "", "must not overwrite what it could not read"
+    view = led.view(day="2026-09-08")
+    assert not view.complete
+    assert not view.fits(1), "must not report a full day's headroom"
+
+
+def test_record_does_not_clobber_an_unreadable_ledger(tmp_path):
+    path = tmp_path / "ledger.json"
+    path.write_text("{not json", encoding="utf-8")
+    led = TokenLedger(path=path, cap=200_000)
+
+    led.record(1_000)
+
+    assert path.read_text(encoding="utf-8") == "{not json"
+
+
+def test_the_write_is_atomic_and_leaves_no_temp_files(tmp_path):
+    led = TokenLedger(path=tmp_path / "ledger.json", cap=200_000)
+    led.record(100)
+    led.record(200)
+
+    assert json.loads((tmp_path / "ledger.json").read_text(encoding="utf-8"))
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+# --- markers must be closed by the run that opened them, and only by it ------
+
+
+def test_a_zero_token_run_still_closes_its_marker(ledger):
+    """A full cache replay costs nothing and is still a run that completed.
+    An early return used to skip the decrement and leave the marker standing."""
+    ledger.begin()
+    view = ledger.record(0)
+
+    assert view.complete
+    assert view.spent == 0
+
+
+def test_a_probe_does_not_close_a_marker_it_did_not_open(ledger):
+    """The preflight spends tokens but is not a run — and running it is exactly
+    what one does after losing a run, so it used to erase the very marker the
+    crash had left behind."""
+    ledger.begin()                       # a run is in flight
+    view = ledger.record(700, closes_run=False)   # a probe from another shell
+
+    assert not view.complete, "the run is still unaccounted for"
+    assert view.spent == 700, "but its tokens are counted"
+
+
+def test_a_probe_on_a_quiet_day_does_not_drive_in_flight_negative(ledger):
+    ledger.record(700, closes_run=False)
+
+    assert ledger.view().complete
+    assert ledger.view().spent == 700

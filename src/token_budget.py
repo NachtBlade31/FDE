@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -78,8 +79,17 @@ class BudgetView:
         return max(0, self.cap - self.spent)
 
     def fits(self, estimated_cost: int) -> bool:
-        """Whether a run of this size can be *ruled in*. Never a guarantee."""
-        return not self.exhausted and estimated_cost <= self.remaining
+        """Whether a run of this size can be *ruled in*. Never a guarantee.
+
+        Fails closed. An unreadable ledger, or one with a run still unaccounted
+        for, returns False — because in both cases the recorded spend is known to
+        be lower than the real spend, and the entire point of this class is that
+        it may rule a run out but must never wave one through on a gap in its own
+        records.
+        """
+        if self.exhausted or not self.complete:
+            return False
+        return estimated_cost <= self.remaining
 
     def explain(self, estimated_cost: int | None = None) -> str:
         lines = [
@@ -100,6 +110,11 @@ class BudgetView:
         if estimated_cost is not None:
             verdict = "fits" if self.fits(estimated_cost) else "DOES NOT FIT"
             lines.append(f"  a {estimated_cost:,}-token run  : {verdict}")
+            if not self.fits(estimated_cost) and not self.exhausted and not self.complete:
+                lines.append(
+                    "                        (refused on incomplete records, not on"
+                    " arithmetic — resolve the entry above)"
+                )
         lines.append(
             "  This ledger counts only what this machine recorded. It can rule a"
             " run out; it cannot promise one will complete."
@@ -126,6 +141,10 @@ class TokenLedger:
 
     # -- knowing about runs that never came back -----------------------------
 
+    @staticmethod
+    def _corrupt(data: dict) -> bool:
+        return bool(data.get("_corrupt"))
+
     def begin(self, *, day: str | None = None) -> None:
         """Announce that a run is starting.
 
@@ -139,38 +158,76 @@ class TokenLedger:
         A marker written here and cleared by `record()` makes the gap visible.
         """
         data = self._read()
+        if self._corrupt(data):
+            # Refuse to write over a file we could not read. Rebuilding it from
+            # scratch would erase every earlier day — including a recorded
+            # `exhausted` — and present the result as a clean slate. `view()`
+            # keeps reporting incomplete, which now rules runs out.
+            return
         key = day or utc_day()
         entry = data.get(key) or {"tokens": 0, "runs": 0}
         entry["in_flight"] = int(entry.get("in_flight", 0)) + 1
         data[key] = entry
-        data.pop("_corrupt", None)
         self._write(data)
 
     def _write(self, data: dict) -> None:
+        """Replace the ledger atomically.
+
+        `write_text` truncates before it writes, so a process killed mid-write
+        left a zero-byte or half-written file — and the recovery path below then
+        rebuilt it as a blank day, discarding the `exhausted` flag that a 429 had
+        put there. Losing the ledger to a crash is tolerable; silently converting
+        it into apparent headroom is not, and "killed mid-run" is the exact
+        scenario this module exists for.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        fd, tmp = tempfile.mkstemp(dir=str(self.path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(data, handle, indent=2, sort_keys=True)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp, self.path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
 
     def record(
-        self, tokens: int, *, day: str | None = None, exhausted: bool = False
+        self,
+        tokens: int,
+        *,
+        day: str | None = None,
+        exhausted: bool = False,
+        closes_run: bool = True,
     ) -> BudgetView:
         """Add a run's measured cost to today's total, and close its marker.
 
         `exhausted` records that the provider itself refused the run for the
         period. That fact survives independently of the token arithmetic,
         because the arithmetic is always an underestimate.
+
+        `closes_run=False` for a caller that never called `begin()` — the
+        preflight probe, which spends tokens but is not a run. Without it a probe
+        cleared the in-flight marker of a run still executing, or worse, erased
+        the marker a crashed run had left behind. Running the preflight is
+        exactly what one does after losing a run, so that erasure hit the case
+        the marker exists to record.
         """
-        if tokens <= 0 and not exhausted:
-            return self.view(day=day)
         data = self._read()
+        if self._corrupt(data):
+            return self.view(day=day)
         key = day or utc_day()
         entry = data.get(key) or {"tokens": 0, "runs": 0}
         entry["tokens"] = int(entry.get("tokens", 0)) + max(0, int(tokens))
         entry["runs"] = int(entry.get("runs", 0)) + 1
         entry["exhausted"] = bool(entry.get("exhausted", False) or exhausted)
-        # This run came back, so it is no longer unaccounted for.
-        entry["in_flight"] = max(0, int(entry.get("in_flight", 0)) - 1)
+        if closes_run:
+            # This run came back, so it is no longer unaccounted for. Note this
+            # happens even when the run spent nothing: a full cache replay costs
+            # zero tokens and is still a run that completed, and an early return
+            # here used to leave its marker standing for the rest of the day.
+            entry["in_flight"] = max(0, int(entry.get("in_flight", 0)) - 1)
         data[key] = entry
-        data.pop("_corrupt", None)
         self._write(data)
         return self.view(day=key)
 

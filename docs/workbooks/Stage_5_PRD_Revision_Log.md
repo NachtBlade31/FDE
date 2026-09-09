@@ -65,7 +65,7 @@ Worth recording, because the revision log is not only a list of errors.
   contact with the whole build; the 71.4% figure it rested on was confirmed.
 - **The escalation-target arithmetic.** Predicted on day zero from the labels as
   65.2% FCR / 34.8% escalation floor; the built system reaches 64.0% / 36.0%. A
-  day-zero analytical claim validated to within 0.3 points.
+  day-zero analytical claim validated to within 1.2 points.
 - **Recording `prompt_version` and `requirement_ids` in the decision log from day
   one.** Both looked like over-engineering at the time. Both are what make the
   incident procedure's step 3 answerable.

@@ -129,7 +129,7 @@ def main() -> int:
         return 1
 
     if result.ok:
-        TokenLedger().record(client.stats.total_tokens)
+        TokenLedger().record(client.stats.total_tokens, closes_run=False)
         # NOT "the budget can support a run" — this script cannot support that
         # claim, and said it anyway on 8 Sep. The probe succeeded, I read it as
         # "the daily budget has reset", and the gate run stopped at ticket 54 of
@@ -147,7 +147,9 @@ def main() -> int:
     # to write nothing — one more silent under-count in a ledger whose whole job
     # is to not under-count.
     TokenLedger().record(
-        client.stats.total_tokens, exhausted=client.stats.quota_exhausted
+        client.stats.total_tokens,
+        exhausted=client.stats.quota_exhausted,
+        closes_run=False,  # a probe is not a run; it opened no marker to close
     )
     if client.stats.quota_exhausted:
         print(

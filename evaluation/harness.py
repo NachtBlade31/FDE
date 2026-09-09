@@ -410,7 +410,9 @@ def run(
         "tokens_used": getattr(stats, "total_tokens", 0),
         # Per CALL, not per ticket. A run that quota-exhausted partway made no
         # calls for the remaining tickets, so dividing by ticket count reports a
-        # cost far below the real one and understates the next run's budget.
+        # cost far below the real one. On the 8 Sep cold run the per-ticket
+        # figure was 597 against a real 646 per call over 1.64 calls a ticket —
+        # budgeting on it would understate the next run by more than 40%.
         "tokens_per_provider_call": round(
             getattr(stats, "total_tokens", 0) / max(1, getattr(stats, "succeeded", 0)), 1
         ),

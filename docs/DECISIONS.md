@@ -923,6 +923,11 @@ in the opposite direction to the relevance floor error. The real shape:
 | 0.00–0.75 | 70.0% | 76.5% | 75.0% | **identical rows — margin never binds** |
 | 0.80 | 69.0% | 76.5% | 75.4% | already descending |
 | **0.85** | **64.5%** | 77.0% | **77.5%** | shipped |
+
+> **Superseded by D-39**, like D-32's table: this sweep predates the removal of
+> two markers, which changed the curve. The shipped configuration's development
+> FCR is **64.0%** at 36.0% escalation. The choice of 0.85 survived the
+> re-derivation; the figure did not.
 | 0.90 | 8.0% | 48.5% | 93.8% | cliff |
 
 The plateau is 0.00–0.75. **0.85 is mid-slope**, and the cost from 0.75 is **5.5
@@ -1427,9 +1432,18 @@ a run cannot fit:
   UTC day             : 2026-09-08 (resets at 00:00 UTC)
   recorded spend      : 47,774 of 200,000 tokens
   remaining (local)   : 0
-  EXHAUSTED           : a run today was refused with 'quota exhausted'.
-  a 104,490-token run : DOES NOT FIT
+  EXHAUSTED           : a run today was refused with 'quota exhausted'. Wait for 00:00 UTC.
+  a 127,132-token run  : DOES NOT FIT
+  This ledger counts only what this machine recorded. It can rule a run out; it cannot promise one will complete.
 ```
+
+*(Verbatim, from `TokenLedger().view(day='2026-09-08').explain(127132)`. I first
+printed an abbreviated version of this block here with a 104,490-token estimate —
+120 × 1.35 × 645, the repudiated multiplier this very entry goes on to retract,
+inside a reconstructed transcript, which is the defect D-44 was corrected for in
+the same commit. Twice in two entries. The ledger itself lives in `storage/`,
+which is gitignored because it is machine-local state, so it is quoted here
+rather than committed.)*
 
 Two design points matter more than the arithmetic:
 
