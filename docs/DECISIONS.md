@@ -807,7 +807,15 @@ that the escalations it added were not buying safety.
 **Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Accepted · **Measured**
 
 Swept over 200 development tickets at abstention floor 0.05.
-Evidence: `evaluation/results/2026-09-07-routing-200.txt`.
+
+> **Superseded by D-39.** The table below is the sweep against the *original*
+> 56-term marker vocabulary. Two markers were removed later that day, which
+> changed the curve, and `evaluation/results/2026-09-07-routing-200.txt` was
+> regenerated — so the artifact no longer contains these figures. The decision
+> (0.85, the last point before the cliff) survived the re-derivation; the numbers
+> did not. **The shipped configuration's development FCR is 64.0% at 36.0%
+> escalation**, per D-39 and the current artifact. This table is kept because it
+> is what the choice was actually made on, and is marked rather than rewritten.
 
 | margin | FCR | escalation | route acc | auto precision |
 |---|---|---|---|---|
@@ -826,9 +834,18 @@ it are within the ±1.5 point run-to-run variance established in D-28. 0.85 is
 defensible as the conservative end of a plateau, not as a measured optimum. This
 is the same honesty applied to the relevance floor in D-20.
 
-**The D-03 prediction held.** §2.3 argued from the labels that maximum defensible
-automation was 65.2% FCR with an escalation floor of 34.8%. The built system
-reaches **65.5% FCR at 34.5% escalation**. The ceiling analysis was right.
+**The D-03 prediction held, and the margin is smaller than I first wrote.** §2.3
+argued from the labels that maximum defensible automation was 65.2% FCR with an
+escalation floor of 34.8%. At the **shipped** configuration (margin 0.85, current
+vocabulary) the system reaches **64.0% FCR at 36.0% escalation** — within 1.2
+points of the predicted ceiling.
+
+I originally reported 65.5% / 34.5% here, "within 0.3 points". That is the
+`≤0.60` row of the sweep — the configuration with the margin gate effectively
+switched off, which is not what ships. Quoting the best row of a sweep as the
+system's result is a way of being wrong that flatters the prediction, and it is
+the more tempting error precisely because the agreement looks so good. The
+ceiling analysis was still right; it was right by 1.2 points, not 0.3.
 
 ---
 
@@ -981,9 +998,18 @@ terms.
 **Separately, latency is now reported twice**, as design §5 committed. Processing
 latency answers the p95 < 3s target; wall clock including token-allowance pacing
 answers the gate's "reasonable time". They diverge sharply: **p95 0.84s
-processing against 304s total wall clock, of which 250s is pacing.** Reporting
-only the first hides the run duration; only the second fails a target it was
-never measuring.
+processing against 304s total wall clock, of which 250s is pacing** — measured on
+the 100-ticket *classification-only* run
+(`evaluation/results/2026-09-07-classifier-100-cold.txt`), not on a full pipeline
+run. Reporting only the first hides the run duration; only the second fails a
+target it was never measuring.
+
+> **Later correction (D-45).** This separation was not as clean as it looks here.
+> Pacing sleeps happen *inside* `process()`, so they were still landing in the
+> per-ticket "processing" figure on full runs: the 8 Sep cold run reported a p95
+> of 9.99s of which 74% was waiting. The harness now measures provider wait per
+> ticket and reports the p95 both ways. The principle was right; the
+> implementation only separated the two at the run level, not the ticket level.
 
 ---
 
@@ -1059,7 +1085,10 @@ precisely this: the defect is invisible until the whole pipeline runs at volume.
 **Tag:** `NUMBERS` · **Date:** 2026-09-07 · **Status:** Fixed · **Measured**
 
 The gate run missed the first contact resolution target (48.8% against 60%), and
-"the splits diverge" was too passive an answer. Diagnosing it on the development
+"the splits diverge" was too passive an answer. *(That 48.8% came from the
+validation run whose artifact was later overwritten — see report §7.2. It is kept
+here because it is what prompted this investigation, but it is no longer citable
+as a result.)* Diagnosing it on the development
 set found a real defect of my own.
 
 Per-marker cost and benefit across all 500 development tickets:
@@ -1111,7 +1140,8 @@ enjoying.
 
 **What this does not fix.** Development FCR of 64.0% is against a development
 label ceiling of 62.2% auto-respond — so on that split we are effectively at the
-ceiling. Validation's ceiling is 60%, and the gate measured 48.8%. The remaining
+ceiling. Validation's ceiling is 60%, and the gate measured 48.8% at the time
+(artifact since overwritten; §7.2). The remaining
 gap is on validation, and it will not be chased: the Project Brief forbids tuning
 against it, and the hidden set is drawn from its population. Fixes are derived
 from development evidence only, and validation is re-measured once at the end.
@@ -1301,6 +1331,143 @@ API key was a deliberate design choice on day one, and this is where it paid.
 > **Video line:** "I cloned my own repository into an empty folder and followed
 > my own README. It worked — except on Windows, where a deeply nested dependency
 > hits the old 260-character path limit. That is in the README now, with the fix."
+
+---
+
+## D-44 · The fairness audit refuses to run on a degraded run
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-08 · **Status:** Implemented
+
+I pointed the fairness audit at a degraded run's outcomes and every one of the
+eleven segments came back negative: −42.9pt (asia_pacific), −37.5pt (enterprise),
+−34.1pt (short tickets), down to −5.3pt (non_fluent). It closed with
+`VERDICT: EXCEEDED — investigate`.
+
+Read at face value that is a system biased against every customer group at once,
+which is not a coherent claim; the uniform sign is the tell. The run had lost its
+provider partway, so every ticket after that point escalated regardless of
+content, which drags each segment's system rate down together. The audit was
+measuring the outage, not fairness.
+
+Verbatim output, under the new `--allow-degraded` flag, is committed at
+[`evaluation/results/2026-09-08-fairness-degraded-run-INSPECTION-ONLY.txt`](../evaluation/results/2026-09-08-fairness-degraded-run-INSPECTION-ONLY.txt).
+I originally paraphrased that table into this entry from memory and got its range
+wrong — writing "−37 to −43" when the real spread was −5.3 to −42.9. The validator
+caught it. Reconstructing a transcript inside a code fence is the same defect as
+the one this entry is about, committed in the act of describing it, so the fence
+is gone and the artifact is linked instead.
+
+This is the same error class as D-30, where I committed a throughput figure that
+turned out to be a cache replay. Both are cases of a number that is arithmetically
+correct and evidentially worthless, and in both cases the defence is the same: the
+tool that produces the number has to know when its input cannot support it.
+
+`scripts/fairness_audit.py` now reads `metrics.json` alongside `outcomes.json` and
+refuses to publish per-segment deltas when the run is marked `degraded` or
+`distribution_collapsed`. It still prints the label baselines, which need no run
+and are always valid. Four further holes closed during review:
+
+| Hole | Why it mattered |
+|---|---|
+| No metrics file → guard silently skipped | Copying `outcomes.json` to the dated-evidence convention removed the guard. A guard `cp` can silence is not a guard; a missing metrics file is now itself a refusal, with `--no-metrics` to override. |
+| `--allow-degraded` printed a clean-looking report | Redirected to a file it was indistinguishable from a real result. It now carries a `DEGRADED RUN — NOT A FAIRNESS RESULT` banner and emits **no verdict at all**. |
+| Small-n caveat suppressed exactly when deltas showed | `enterprise` (n=8) printed `−37.5pt` with no interval — and that is the figure this entry quotes. The caveat is now unconditional. |
+| Baseline and system rates could span different tickets | A partial run compared a 23-ticket system rate against a 30-ticket baseline and reported the gap between two populations as bias. The baseline now narrows to the covered tickets. |
+
+A **cache replay is explicitly allowed** — the outcomes in a replay are real
+routing decisions; what a replay cannot support is a *timing* claim (D-30), and
+this audit makes none. That distinction is now pinned by a test rather than left
+to a comment: `tests/test_fairness_audit.py`, 15 cases.
+
+Recorded refusal: [`evaluation/results/2026-09-08-fairness-degraded-run-refused.txt`](../evaluation/results/2026-09-08-fairness-degraded-run-refused.txt).
+
+The alternative was to fix it by hand — note the caveat in the report and move on.
+That works exactly once, for the person who already knows. The guard works for
+whoever runs it next.
+
+> **Video line:** "My fairness audit told me the system was biased against every
+> single customer group at once. That is not bias, that is an outage — the run
+> had lost its provider halfway through and escalated everything after that. So
+> the audit now refuses to report fairness numbers from a degraded run at all."
+
+---
+
+## D-45 · A successful preflight call does not mean a run will fit
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-08 · **Status:** Implemented
+
+The third gate run died the same death as the second, and the cause was my own
+reasoning rather than the provider.
+
+`scripts/check_env.py` made a full-sized 700-token live call. It succeeded. I
+read that as "the daily budget has reset" and started a cold 80-ticket run. It
+stopped at **VAL-0054** — 54 of 80 — with `provider quota exhausted`, having
+spent 47,774 tokens. The remaining 26 tickets escalated with no model call, the
+run was correctly marked degraded, and its business rates were correctly
+withheld. Every control behaved; the decision to start was wrong.
+
+**The reasoning error is worth naming precisely.** A successful call proves that
+*one call* fits. It says nothing about eighty. The provider publishes a
+per-minute remaining figure in response headers and **no daily figure anywhere** —
+the daily cap surfaces only in the body of a 429 (D-40). So "will this run fit?"
+is a question the provider will not answer, and I answered it by analogy from a
+single probe.
+
+The compounding factor was the reset boundary. It is 00:00 **UTC**, which is
+05:30 local. The degraded run at 12:35 UTC and the cold run at 18:00 UTC were the
+*same allowance*, and it did not feel that way at 23:30 in the evening.
+
+**What was built.** `src/token_budget.py` keeps a per-UTC-day ledger of measured
+spend, summed from the provider's own `usage.total_tokens` — which the client was
+already receiving and discarding. The harness records each run's cost; the
+preflight reads it before spending anything, and now refuses to probe at all when
+a run cannot fit:
+
+```
+  UTC day             : 2026-09-08 (resets at 00:00 UTC)
+  recorded spend      : 47,774 of 200,000 tokens
+  remaining (local)   : 0
+  EXHAUSTED           : a run today was refused with 'quota exhausted'.
+  a 104,490-token run : DOES NOT FIT
+```
+
+Two design points matter more than the arithmetic:
+
+1. **The ledger is asymmetric on purpose.** It may rule a run *out*; it may never
+   promise one will complete. It cannot see spend from another machine, another
+   key, or a run that died before recording, so its count is always a floor. The
+   success message says "one call fits", not "you are good to go" — the exact
+   sentence that caused this.
+2. **A 429 outranks the ledger's own arithmetic.** The cold run recorded 47,774
+   tokens — 24% of the cap — and was refused anyway, because earlier runs that
+   day had spent the rest without recording it. When the provider says the day is
+   over, that fact is stored and wins over the sum. `test_token_budget.py` pins
+   this as its central case.
+
+**The measured cost, at last.** 47,774 tokens across 74 successful calls is ~646
+per call. A fully processed ticket costs one classification plus, when it
+auto-responds, one generation — so **1 + FCR** calls per ticket. At the shipped
+configuration's 64.0% (`2026-09-07-routing-200.txt`, margin 0.85) that is 1.64,
+and **120 tickets ≈ 127,000 tokens, about two thirds of the daily cap**.
+
+I first published 1.35 calls per ticket, taken from the cold run's own
+auto-respond rate of 33.75%. That was wrong in an instructive way: 26 of that
+run's 80 tickets never reached the model, so the rate was depressed *by the very
+failure the estimate is meant to prevent*. A degraded run made the next run look
+cheap. The validator caught it; the multiplier now comes from a healthy artifact,
+and `estimated_run_cost` documents that it returns the pessimistic end on purpose,
+because an optimistic estimate makes the gate wave through exactly the run it
+exists to stop.
+
+The README previously stated 94,000–106,000 from an estimate, and D-40 implied
+~147,000 from a different one; neither was measured, and they could not both be
+right. Both inputs here remain floors — errored calls are billed but uncounted,
+and generation calls are larger than classification ones.
+
+> **Video line:** "My preflight check made a real API call, it succeeded, and I
+> took that as permission to start. The run died two thirds of the way through:
+> one call fitting tells you nothing about eighty fitting. So I stopped asking
+> the provider a question it doesn't answer, and started keeping my own ledger."
 
 ---
 

@@ -63,7 +63,10 @@ check stays meaningful. A grader running it twice would have hit this.
 | **R-04** | Some customer groups receive worse answers | High — and already true before the system existed | Severe at renewal | Every measure segmented by tier, region, fluency and ticket length, compared against **the same split's own label baseline**. See §3 — the baseline is not flat and its ordering inverts between splits. | Head of Support |
 | **R-05** | The documentation the system relies on goes stale | Medium | Moderate, and silent | Answers cite the document they came from, so a wrong answer can be traced to either the article or the system — Ines's requirement. **Limitation stated:** `last_reviewed_days_ago` is 0 for all 29 articles, so staleness is undetectable in this data. The control is design-level (surface article age beside every citation), not measurable here. | Technical Writer |
 | **R-06** | The model provider becomes unavailable | **High — it is a free tier, and it happened repeatedly during the build** | Moderate if handled | The run degrades to retrieval-only and completes: every ticket escalates with its retrieved context attached, which is still faster than today's 8–12 hour wait. The report is flagged `DEGRADED` and its business rates withheld. `src/pipeline.py`, `evaluation/harness.py` | Engineering |
-| **R-07** | Latency degrades under load | Medium | Moderate — chat customers abandon | Processing latency and wall clock are reported separately, because token-allowance pacing makes them diverge sharply. Measured p95 processing latency 0.84s against a 3s target. | Engineering |
+| **R-07** | Latency degrades under load | Medium | Moderate — chat customers abandon | Processing latency and wall clock are reported separately, because token-allowance pacing makes them diverge sharply. On the 8 Sep cold run, 74% of measured per-ticket time (217.6s of 294.3s) was
+the client asleep waiting for the free tier's token allowance: a raw mean of
+3.68s against a work-only mean of 0.96s, both against a 3s target. The harness
+now records provider wait per ticket and reports the figure both ways. | Engineering |
 | **R-08** | Costs rise unexpectedly with volume | Low in money, **high in allowance** | Moderate | Free tier throughout. The binding constraint is 200,000 tokens/day ≈ 163 tickets — a limit that appears only in the error body, not the rate-limit headers. Exhaustion is detected and the run degrades rather than stalling. Cache hits and per-ticket call counts are reported. | Engineering |
 | **R-09** | A security or compliance ticket is auto-answered | Medium — 17.4% of tickets and classification is imperfect | **Severe and non-recoverable** | Three independent layers plus grounding. **This one was rewritten mid-project** — see §4. | Head of Support |
 | **R-10** | A broken run is mistaken for a conservative one | Medium | Severe — it corrupts the evaluation | A provider outage produces 100% escalation, which is indistinguishable in the output from a very cautious working system. Two independent detectors: the degraded flag, and distribution collapse measured from the predictions themselves. Business rates are withheld when either fires. | Engineering |
@@ -103,7 +106,39 @@ measurement rather than anticipated.
 
 **Sample-size honesty.** Segments below ten tickets are reported with a 95%
 Wilson interval and labelled as unable to support inference. Validation has seven
-`latin_america` tickets, whose interval spans 16% to 75%.
+`latin_america` tickets, whose interval spans 16% to 75%. Until review this
+caveat printed only when no run was supplied — so it was suppressed on precisely
+the rows carrying a delta, including the `enterprise` figure (n=8) that a
+decision entry went on to quote. It is now unconditional.
+
+**The audit refuses to run on a run it cannot trust.** This is the control that
+matters most in this section, and it exists because the audit got it wrong first.
+
+Pointed at a run whose provider had failed partway, it returned eleven negative
+deltas — −42.9pt (`asia_pacific`) through −5.3pt (`non_fluent`) — and the verdict
+`EXCEEDED — investigate`. That reads as a system biased against every customer
+group at once. It was not: a run that loses its provider escalates everything it
+cannot classify, which pulls all segments down together. The audit was measuring
+an outage and reporting it as discrimination — and because the numbers were
+uniformly negative and individually plausible, nothing about the output looked
+wrong.
+
+`scripts/fairness_audit.py` therefore reads the run's `metrics.json` and:
+
+| Condition | Behaviour |
+|---|---|
+| `degraded` or `distribution_collapsed` | **Refuses** to publish per-segment deltas |
+| No `metrics.json` found beside the outcomes | **Refuses** — a guard a file copy can silence is not a guard. `--metrics PATH` or `--no-metrics` to override explicitly |
+| `cache_replay` | **Proceeds.** Replayed outcomes are real routing decisions; only a *timing* claim needs live calls (D-30), and this audit makes none |
+| `--allow-degraded` | Proceeds for inspection, under a `DEGRADED RUN — NOT A FAIRNESS RESULT` banner, and emits **no verdict** |
+
+In every refusing case it still prints the label baselines, which need no run and
+are always valid. The behaviour is pinned by `tests/test_fairness_audit.py`
+(15 cases) rather than by convention, because it is a governance control whose
+failure mode is a confident false finding about protected groups.
+
+Full reasoning: **D-44**. Recorded refusal:
+`evaluation/results/2026-09-08-fairness-degraded-run-refused.txt`.
 
 **What Sofia said.** She believed non-fluent English tickets were handled worse
 and that nobody had noticed. She is right on validation and wrong on development

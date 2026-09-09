@@ -24,7 +24,7 @@ record. Everything below has a dated trigger and a specific measurement.
 | **R-5** | **FR-21 / NFR-02** — degradation | "Degrades rather than crashes" on provider failure. | Adds that a **degraded run must not publish its business rates**, and that degradation is detected two independent ways. | A provider outage produces 100% escalation, which is indistinguishable in the output from a very conservative working system — and reads as a catastrophic result against a 30% target rather than as a broken run. | 2026-09-07 |
 | **R-6** | **FR-18** — decision log coverage | Reconciliation compares logged decisions against tickets processed. | Reconciliation is **scoped to a run** via `run_id`. | Running the harness twice failed A8, naming the *previous* run's tickets. The log accumulates across runs by design — governance wants the history — so the check needed scoping rather than the log needing clearing. | 2026-09-08 |
 | **R-7** | **NFR-03** — cost | "Free tiers only." | Adds the measured budget: **200,000 tokens/day ≈ 163 tickets, across all runs.** | Discovered by exhausting it. The cap appears only in the 429 body; every rate-limit header describes the per-minute bucket, which was full. | 2026-09-08 |
-| **R-8** | **§6** — success measures | Escalation ≤30% listed alongside FCR ≥60% as a target to hit. | Escalation ≤30% recorded as **unreachable without a governance breach**, with the arithmetic. | Established on day zero from the labels and confirmed by the build: maximum defensible automation is 65.2% FCR / 34.8% escalation on development; the system reached 65.5% / 34.5%. | 2026-09-04, confirmed 2026-09-07 |
+| **R-8** | **§6** — success measures | Escalation ≤30% listed alongside FCR ≥60% as a target to hit. | Escalation ≤30% recorded as **unreachable without a governance breach**, with the arithmetic. | Established on day zero from the labels and confirmed by the build: maximum defensible automation is 65.2% FCR / 34.8% escalation on development; the system reaches 64.0% / 36.0% at its shipped configuration. | 2026-09-04, confirmed 2026-09-07 |
 
 ---
 
@@ -64,7 +64,7 @@ Worth recording, because the revision log is not only a list of errors.
 - **The problem framing.** "Delivery failure, not answer shortage" survived
   contact with the whole build; the 71.4% figure it rested on was confirmed.
 - **The escalation-target arithmetic.** Predicted on day zero from the labels as
-  65.2% FCR / 34.8% escalation floor; the built system reached 65.5% / 34.5%. A
+  65.2% FCR / 34.8% escalation floor; the built system reaches 64.0% / 36.0%. A
   day-zero analytical claim validated to within 0.3 points.
 - **Recording `prompt_version` and `requirement_ids` in the decision log from day
   one.** Both looked like over-engineering at the time. Both are what make the

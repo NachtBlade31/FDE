@@ -33,18 +33,21 @@ from typing import Mapping
 # self-reported confidence puts 99 of 100 predictions in one band and so has
 # nothing to sweep; margin does.
 #
-# DERIVED 2026-09-07 by sweep over 200 development tickets, abstention floor 0.05.
+# DERIVED 2026-09-07 by sweep over 200 development tickets, abstention floor 0.05,
+# and RE-DERIVED the same day after two markers were removed (D-39), which changed
+# the curve. These are the current figures, and they match the artifact.
 # Evidence: evaluation/results/2026-09-07-routing-200.txt
 #
 #   margin   FCR     escal    route acc   auto prec
-#   <=0.75   65.5%   34.5%      78.0%       77.9%
-#    0.80    64.5%   35.5%      78.0%       78.3%
-#    0.85    62.5%   37.5%      79.0%       80.0%   <- chosen
-#    0.90     8.0%   92.0%      48.5%       93.8%   <- cliff
+#   <=0.60   65.5%   34.5%      78.0%       77.9%
+#   0.70-75  64.5%   35.5%      78.0%       78.3%
+#    0.85    64.0%   36.0%      77.5%       78.1%   <- chosen, and what ships
+#    0.90     8.0%   92.0%      46.5%       81.2%   <- cliff
 #
-# 0.85 is the last point before the cliff and is best on both routing accuracy
-# and auto-respond precision, while first contact resolution still clears the
-# 60% target. Marcus's constraint - "I would rather it said nothing than said
+# 0.85 is the last point before the cliff, and 0.70-0.85 now spans half a point
+# on every measure - inside run-to-run variance - so it is the conservative end of
+# a plateau rather than a measured optimum. First contact resolution still clears
+# the 60% target there. Marcus's constraint - "I would rather it said nothing than said
 # something wrong" - makes precision the tie-breaker.
 #
 # Zero governance violations at every threshold tested.

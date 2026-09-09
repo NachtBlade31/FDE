@@ -34,22 +34,35 @@ finds the existing answer, sends it only when four independent conditions agree,
 and otherwise hands the ticket to a person with the relevant article attached and
 an honest statement of what it was uncertain about.
 
-**What it achieved**, on the 80-ticket validation set, in a single unattended run:
+**What it achieved**, on the 80-ticket validation set, in a single unattended run.
+Every row here is reproducible from a committed artifact; the rows that are not
+are named as such rather than filled in, and §7.2 gives the reason.
 
 | | Target | Achieved |
 |---|---|---|
-| First contact resolution | ≥ 60% | 48.8% |
-| Escalation rate | ≤ 30% | 51.2% |
-| Classification accuracy | ≥ 85% | 82.5% |
-| Citation resolution | 100% | **100%** |
 | **Deny-listed tickets auto-answered** | **0** | **0** |
-| Processing latency p95 | < 3s | **0.84s** |
+| Citation resolution | 100% | **100%** |
+| Retrieval hit rate @3 | — | **94.3%** |
+| Decision log reconciliation | exact | **passes** |
+| Tickets processed unattended | 80 | **80** |
+| Classification accuracy | ≥ 85% | 85.2% *(of the 54 tickets that reached the model)* |
+| Processing latency p95 | < 3s | *see §7.2* — 74% of measured time was rate-limit waiting |
+| First contact resolution | ≥ 60% | *withheld — run degraded* |
+| Escalation rate | ≤ 30% | *withheld — run degraded* |
+
+Three attempts at a clean validation run on 8 September were lost to the free
+tier's undocumented daily token cap (§7.2, D-45). The last completed all 80
+tickets but lost the provider at ticket 54, so the reporter withheld its business
+rates rather than publishing an escalation rate produced by an outage. **The
+governance and functional results are unaffected and are measured; the business
+rates are outstanding.**
 
 **The single most important caveat.** The escalation target of ≤30% is
 unreachable without a governance breach, and this was established from the labels
 on day zero rather than discovered as an excuse afterwards. Maximum *defensible*
 automation on the development set is 65.2%, giving an escalation floor of 34.8%;
-the built system reached 65.5% / 34.5%, within 0.3 points of that prediction. On
+the built system reaches 64.0% / 36.0% at its shipped configuration, within 1.2
+points of that prediction. On
 validation the ceiling is lower still. Reaching 30% would require auto-answering
 either security and compliance tickets or ungrounded ones. I chose to miss the
 target and explain it.
@@ -286,18 +299,44 @@ produced under.
 
 ### 7.2 Results
 
-*Table 1 — validation set, single unattended run, 80 tickets*
+*Table 1 — validation set, 80 tickets. Every row names the committed artifact
+it comes from. Rows whose artifact no longer exists are marked as such rather
+than restated.*
 
-| Measure | Baseline | Target | Achieved | Confidence in the figure |
+| Measure | Baseline | Target | Achieved | Source artifact |
 |---|---|---|---|---|
-| First contact resolution | 43.8% | ≥60% | 48.8% | **High** — direct count |
-| Escalation rate | 56.2% | ≤30% | 51.2% | High; target unreachable, see §7.4 |
-| Classification accuracy | — | ≥85% | 82.5% | **Moderate** — ±2 points across runs |
-| Retrieval hit rate @3 | — | — | 94.3% | High |
-| Citation resolution | — | 100% | **100%** | High — checked by re-resolution |
-| Processing latency p95 | 8–12 hrs | <3s | **0.84s** | High; wall clock reported separately |
-| Deny-list violations | — | 0 | **0** | High — condition, not target |
-| Decision log reconciliation | — | exact | **passes** | High |
+| Retrieval hit rate @3 | — | — | **94.3%** | `2026-09-08-gate-run-cold/metrics.json` (53 eligible) |
+| Citation resolution | — | 100% | **100%** | same run; 27 answers, re-resolved |
+| Deny-list violations | — | 0 | **0** | same run, and every threshold in `2026-09-07-routing-200.txt` |
+| Decision log reconciliation | — | exact | **passes** | same run; 80 of 80 tickets |
+| Processing latency p95 | 8–12 hrs | <3s | **see below** | same run — 9.99s raw, 74% of it rate-limit sleep |
+| First contact resolution | 43.8% | ≥60% | *withheld* | run degraded; rates correctly suppressed |
+| Escalation rate | 56.2% | ≤30% | *withheld* | as above; see §7.4 for why the target is unreachable |
+| Classification accuracy | — | ≥85% | *pending* | see note |
+
+**Why four rows are not numbers.** Three attempts at a full validation run on
+8 September were lost to the free tier's undocumented daily token cap (D-45); the
+last stopped at ticket 54 of 80 and was correctly marked degraded, so its business
+rates were withheld by the reporter rather than published. An earlier, healthier
+validation run *did* produce 48.8% FCR, 51.2% escalation and 82.5% accuracy — the
+figures previously printed here — but it wrote to a generic output directory that
+a later run overwrote, so no committed artifact supports them. **They are
+therefore not restated as results.** The functional rows above are unaffected:
+they come from the surviving cold run and do not depend on the model reaching
+every ticket.
+
+Two supporting figures that *are* reproducible: classification accuracy over the
+54 tickets that reached the model was **85.2%** (46 of 54, derived from
+`technical.classification_accuracy` 0.575 across 80 with a 32.5% fallback rate),
+and per-class accuracy is in the same file. That is consistent with the 87%±2 dev
+figure, but it is a partial-run number and is reported as one.
+
+**On latency.** The raw p95 of 9.99s is not a system measurement: **74% of total
+per-ticket processing time in that run (217.6s of 294.3s) was the client asleep
+waiting for the free tier's token allowance.** Net of that wait the mean is
+**0.96s**. The harness now records provider wait per ticket and reports both
+figures, so this is no longer a subtraction done by hand — but the p95 *net* of
+waiting needs one run under the new instrumentation, and is pending with the rest.
 
 ### 7.3 Calibration — a failed condition, reported as one
 
@@ -321,7 +360,7 @@ confidence, and why §5.1's conjunction leans on grounding and the deny-list.
 Maximum defensible automation on development is 311 tickets labelled
 `auto_respond` plus 15 labelled `escalate` that are neither deny-listed nor
 ungrounded — **326/500 = 65.2%**, giving an escalation floor of **34.8%**. The
-built system reached 65.5% / 34.5%.
+built system reaches 64.0% / 36.0% at the shipped margin of 0.85.
 
 Reaching 30% would require moving 39 more tickets, and the only pools available
 are 87 deny-listed tickets (a governance failure) or 87 ungrounded ones (blocked
@@ -400,12 +439,36 @@ themselves** already vary by more than the five-point condition:
 Three of four segments exceed the condition before any system exists. The
 ordering also inverts between splits. The audit therefore reports **system rate
 minus the same split's label baseline**, pre-registered before results were
-known. Segments below ten tickets are reported with an interval and labelled as
-unable to support inference.
+known. Segments below ten tickets carry a Wilson interval and are labelled as
+unable to support inference — a caveat that, until review, printed only when no
+outcomes were supplied, so it was suppressed on exactly the delta rows most
+likely to be quoted (`enterprise`, n=8; `latin_america`, n=7). It is now
+unconditional.
 
 Sofia believed non-fluent English tickets were handled worse and that nobody had
 noticed. She is right on validation and wrong on development — she identified a
 real risk that the development data alone would have denied.
+
+**The audit refuses to run on a degraded run.** Pointed at a degraded run it
+returned eleven negative deltas — −42.9pt (asia_pacific) to −5.3pt (non_fluent) —
+and the verdict `EXCEEDED — investigate`: a system apparently biased against every
+customer group at once. That run had lost its provider partway, so every ticket
+after that escalated regardless of content, pulling all segments down together.
+The audit was measuring the outage. Uniformly negative numbers are superficially
+plausible, and publishing them would have been the most damaging error in this
+report.
+
+The tool now reads the run's `metrics.json` and declines to produce per-segment
+deltas when the run is marked degraded, printing only the label baselines, which
+need no run and are always valid (D-44). It also refuses when *no* metrics file is
+present, because copying `outcomes.json` into the dated-evidence layout used to
+disable the guard silently. A cache replay is still accepted — replayed outcomes
+are real routing decisions; only degradation invalidates them.
+
+**The current figure is therefore the baselines alone.** A published per-segment
+delta needs one non-degraded full-set run. Three attempts on 8 September were lost
+to the free tier's daily token cap (D-45); the fourth is scheduled for the next
+UTC window.
 
 ### 8.4 The kill switch
 
@@ -446,8 +509,19 @@ Full log with triggers and dates: Stage 5 workbook.
 ### 10.1 What was delivered
 
 A system that clears the gate — 80 tickets, one command, unattended, zero
-governance violations, a reconciling decision log — and that misses two of its
-five business targets for reasons it can explain.
+governance violations, a reconciling decision log, every ticket accounted for
+even after the provider stopped answering at ticket 54.
+
+Its **business** rates are not among the results, and that is the honest state of
+this submission rather than a formatting choice: the runs that produced them were
+lost to the free tier's daily token cap, and the reporter withholds rates from a
+degraded run by design (§7.2, D-45). The functional and governance criteria are
+measured and committed; the business figures need one clean run in a fresh UTC
+token window. On the development set, where the budget stretched further, the
+system reaches **64.0% first-contact resolution at its shipped margin of 0.85,
+against a 65.2% day-zero prediction** (`2026-09-07-routing-200.txt`) — which is
+what I would expect it to approach on validation, and I am deliberately not
+presenting an expectation as a result.
 
 ### 10.2 What I would do next
 

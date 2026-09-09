@@ -163,6 +163,38 @@ not requests, so the harness waits for the allowance window rather than retrying
 into the limit. The report separates *processing latency* (what the sub-3-second
 target measures) from *wall clock* (which includes those waits).
 
+**Budget one run per day, and start it early in the UTC day.** The free tier's
+published limits are per minute; it also enforces an undocumented **200,000
+tokens per day** that appears only in the body of a 429, never in a response
+header. **The reset is 00:00 UTC**, not local midnight — three runs were lost on
+one day because two of them, hours apart, were spending the same allowance.
+
+Measured cost: **~646 tokens per provider call** (47,774 tokens over 74 calls in
+`evaluation/results/2026-09-08-gate-run-cold/metrics.json`). A fully processed
+ticket costs one classification plus, when it auto-responds, one generation —
+so **1 + the first-contact-resolution rate** calls per ticket, which at the
+shipped configuration's 64% is 1.64.
+
+A 120-ticket run is therefore about **127,000 tokens — roughly two thirds of the
+daily cap**. Both inputs are floors: calls that error are billed but not counted,
+and generation calls are larger than classification ones. **Two full runs will not
+fit in one UTC day**, and one run plus a few false starts may not either.
+
+Check before a graded run:
+
+```bash
+python scripts/check_env.py
+```
+
+It reports a local ledger of what today has already cost (`storage/token_ledger.json`,
+written by every run) and refuses to even probe when a run cannot fit. Note what
+it does *not* claim: a successful probe proves **one call** fits, not that a run
+does — the provider publishes no daily-remaining figure to check against, so the
+ledger can rule a run out but never promise one will complete.
+
+Repeat runs over cached tickets cost nothing: the cache is content-addressed, so
+re-running the same file makes no provider calls at all.
+
 **If the model provider is unreachable**, the run still completes: every ticket
 escalates with its retrieved context attached, and the report is marked
 `DEGRADED` with the business rates withheld rather than published — a broken run
