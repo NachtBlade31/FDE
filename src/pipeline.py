@@ -51,6 +51,11 @@ class TicketOutcome:
     routing: RoutingDecision | None = None
     answer: GeneratedAnswer | None = None
     latency_seconds: float = 0.0
+    # Of `latency_seconds`, how much was spent asleep waiting for the free tier's
+    # token allowance rather than doing work. The <3s target is about the system;
+    # a queueing delay imposed by an unpaid tier is a deployment property, and
+    # conflating them makes the figure meaningless in both directions.
+    provider_wait_seconds: float = 0.0
     degraded: bool = False
     stages_run: tuple[str, ...] = ()
     failures: tuple[str, ...] = ()
@@ -365,6 +370,8 @@ class Pipeline:
         import time
 
         started = time.perf_counter()
+        stats = getattr(self.client, "stats", None)
+        paced_before = getattr(stats, "paced_seconds", 0.0) if stats else 0.0
         state = _State(raw=raw)
 
         try:
@@ -384,6 +391,9 @@ class Pipeline:
         )
 
         outcome.latency_seconds = time.perf_counter() - started
+        outcome.provider_wait_seconds = (
+            (getattr(stats, "paced_seconds", 0.0) - paced_before) if stats else 0.0
+        )
         outcome.classification = state.classification
         outcome.retrieval = state.retrieval
         outcome.routing = state.routing

@@ -399,3 +399,156 @@ def test_the_markdown_says_so_when_latency_is_withheld(paths, tmp_path):
 
     text = (out / "report.md").read_text("utf-8")
     assert "cache" in text.lower()
+
+
+# --- the <3s target measures work, not queueing ------------------------------
+#
+# 74% of measured per-ticket latency in the 8 Sep cold run was the client asleep
+# waiting for the free tier's token allowance: p95 9.99s against a work-only mean
+# of 0.96s. Reporting only the raw figure makes the system look ten times slower
+# than it is; reporting only the net figure hides what a user on this tier would
+# actually wait. Both are reported, and neither is allowed to go missing.
+
+
+class PacingClient(StubClient):
+    """A client that charges a fixed pacing sleep to each call, as the real one
+    does when the token allowance runs out mid-run."""
+
+    def __init__(self, seconds_per_call=2.0, **kw):
+        super().__init__(**kw)
+        self._pace = seconds_per_call
+
+    def complete(self, system, user, max_tokens=512):
+        result = super().complete(system, user, max_tokens)
+        self.stats.paced_seconds += self._pace
+        self.stats.paced_count += 1
+        return result
+
+
+def test_provider_waiting_is_recorded_per_ticket(paths):
+    report = _run(paths, client=PacingClient(seconds_per_call=1.5,
+                                             replies=[_CLASSIFY, _ANSWER] * 60))
+    outcomes = report["_outcomes"]
+
+    assert all(o.provider_wait_seconds > 0 for o in outcomes)
+    # Every ticket makes at least the classification call.
+    assert all(o.provider_wait_seconds >= 1.5 for o in outcomes)
+
+
+def test_the_report_gives_latency_both_including_and_excluding_provider_wait(paths):
+    report = _run(paths, client=PacingClient(seconds_per_call=1.5,
+                                             replies=[_CLASSIFY, _ANSWER] * 60))
+    technical = report["technical"]
+
+    raw = technical["processing_latency_p95_seconds"]
+    net = technical["processing_latency_p95_excluding_provider_wait_seconds"]
+
+    assert raw is not None and net is not None
+    assert net < raw, "the net figure must exclude the pacing sleep"
+    assert net < 1.0, "stubbed work is fast; only the injected wait is slow"
+    assert technical["provider_wait_share_of_processing"] > 0.5
+
+
+def test_the_net_figure_is_never_negative(paths):
+    """Defensive: pacing is counted process-wide, so a mismatch must clamp to
+    zero rather than produce a nonsensical negative latency."""
+    report = _run(paths, client=PacingClient(seconds_per_call=1000.0,
+                                             replies=[_CLASSIFY, _ANSWER] * 60))
+
+    # NOT `max(0, x) >= 0`, which is true of every real number and would pass
+    # with the production clamp deleted. Assert on the clamp's actual input.
+    assert any(
+        o.latency_seconds - o.provider_wait_seconds < 0 for o in report["_outcomes"]
+    ), "this fixture must actually drive the difference negative"
+    assert report["technical"]["processing_latency_p95_excluding_provider_wait_seconds"] >= 0
+    assert report["technical"]["provider_wait_share_of_processing"] <= 1.0
+
+
+def test_a_run_with_no_pacing_reports_the_same_figure_both_ways(paths):
+    report = _run(paths)
+    technical = report["technical"]
+
+    assert technical["processing_latency_p95_seconds"] == pytest.approx(
+        technical["processing_latency_p95_excluding_provider_wait_seconds"]
+    )
+    assert technical["provider_wait_share_of_processing"] == 0.0
+
+
+def test_per_ticket_provider_wait_is_written_to_the_audit_trail(paths):
+    source, out = paths()
+    run(
+        input_path=source,
+        output_path=out,
+        client=PacingClient(seconds_per_call=1.5, replies=[_CLASSIFY, _ANSWER] * 60),
+        storage_path=out / "storage",
+    )
+    rows = json.loads((out / "outcomes.json").read_text(encoding="utf-8"))
+
+    assert all("provider_wait_seconds" in r for r in rows)
+    assert all(r["provider_wait_seconds"] >= 1.5 for r in rows)
+
+
+# --- the run records what it cost against the daily cap ----------------------
+
+
+def test_the_run_records_its_token_cost_in_the_daily_ledger(paths, tmp_path, monkeypatch):
+    monkeypatch.setenv("TOKEN_LEDGER_PATH", str(tmp_path / "ledger.json"))
+
+    client = StubClient([_CLASSIFY, _ANSWER] * 60)
+    client.stats.total_tokens = 12_345
+    report = _run(paths, client=client)
+
+    assert report["run"]["tokens_used"] == 12_345
+    assert report["run"]["daily_tokens_recorded"] == 12_345
+    assert report["run"]["daily_tokens_remaining"] == 200_000 - 12_345
+
+
+def test_a_quota_exhausted_run_marks_the_ledger_day_spent(paths, tmp_path, monkeypatch):
+    monkeypatch.setenv("TOKEN_LEDGER_PATH", str(tmp_path / "ledger.json"))
+
+    client = StubClient([_CLASSIFY, _ANSWER] * 60)
+    client.stats.total_tokens = 5_000
+    client.stats.quota_exhausted = True
+    report = _run(paths, client=client)
+
+    assert report["run"]["quota_exhausted"] is True
+    assert report["run"]["daily_tokens_remaining"] == 0
+
+
+def test_token_cost_is_reported_per_call_not_per_ticket(paths):
+    """A run that quota-exhausted made no calls for its remaining tickets, so
+    dividing by ticket count understates the next run's budget.
+
+    The 8 Sep cold run is the case: 47,774 tokens over 80 tickets reads as 597
+    per ticket, but only 54 tickets ever reached the provider — the true figure
+    is 645 per call, and budgeting on 597 under-provisions the next run.
+    """
+    client = StubClient([_CLASSIFY, _ANSWER] * 60)
+    client.stats.total_tokens = 10_000
+    report = _run(paths, client=client)
+
+    calls = client.stats.succeeded
+    tickets = report["volume"]["processed"]
+    assert calls > tickets, "this fixture must make more calls than tickets"
+    assert report["run"]["tokens_per_provider_call"] == pytest.approx(
+        10_000 / calls, abs=0.05  # the metric is stored to one decimal place
+    )
+    # The per-ticket figure would be larger, and is deliberately not published.
+    assert report["run"]["tokens_per_provider_call"] < 10_000 / tickets
+
+
+def test_a_ledger_failure_cannot_fail_the_run(paths, tmp_path, monkeypatch):
+    """A9: nothing added for bookkeeping may take the unattended run down."""
+    monkeypatch.setenv("TOKEN_LEDGER_PATH", str(tmp_path / "ledger.json"))
+    import src.token_budget as tb
+
+    def boom(*a, **k):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(tb.TokenLedger, "record", boom)
+
+    report = _run(paths)
+
+    assert report["volume"]["processed"] == 6
+    assert report["run"]["daily_tokens_recorded"] is None
+    assert "disk gone" in report["run"]["ledger_error"]

@@ -98,6 +98,18 @@ def build_report(outcomes: list[TicketOutcome], run_meta: dict[str, Any]) -> dic
     withheld = degraded or collapsed
 
     latencies = [o.latency_seconds for o in outcomes]
+    # The same measurement with the free tier's enforced waiting removed. On the
+    # 8 Sep cold run, 217.6s of 294.3s total per-ticket processing — 74% — was the
+    # client asleep waiting for the token allowance: a raw mean of 3.68s against
+    # a work-only mean of 0.96s. (That run predates this instrumentation, so its
+    # net *p95* is not recoverable; the means are, by subtraction.) Reporting only
+    # the raw figure makes the system look an order of magnitude slower than it
+    # is; reporting only the net figure hides what a user on this tier would
+    # actually wait. Both are reported.
+    work_latencies = [
+        max(0.0, o.latency_seconds - getattr(o, "provider_wait_seconds", 0.0))
+        for o in outcomes
+    ]
     replay = bool(run_meta.get("cache_replay"))
     business: dict[str, Any] = {
         "first_contact_resolution": None if withheld else (auto / total if total else 0.0),
@@ -165,6 +177,14 @@ def build_report(outcomes: list[TicketOutcome], run_meta: dict[str, Any]) -> dic
             None if replay else (statistics.mean(latencies) if latencies else 0.0)
         ),
         "processing_latency_p95_seconds": None if replay else _percentile(latencies, 0.95),
+        "processing_latency_p95_excluding_provider_wait_seconds": (
+            None if replay else _percentile(work_latencies, 0.95)
+        ),
+        "provider_wait_share_of_processing": (
+            None
+            if replay or not sum(latencies)
+            else round(1 - sum(work_latencies) / sum(latencies), 4)
+        ),
         "latency_withheld_reason": (
             (
                 "Withheld: most of this run was served from cache, so these figures would measure "
@@ -176,7 +196,9 @@ def build_report(outcomes: list[TicketOutcome], run_meta: dict[str, Any]) -> dic
             else None
         ),
         "latency_note": (
-            "Processing latency per ticket. Wall clock for the whole run includes waiting "
+            "Processing latency per ticket, and the same figure with the free tier's "
+            "enforced rate-limit waiting removed; the target is about system work, not "
+            "about queueing imposed by an unpaid tier. Wall clock for the whole run includes waiting "
             "for the provider's token allowance to reset and is reported under run."
         ),
     }
@@ -297,6 +319,17 @@ def run(
         run_id=run_id,
     )
 
+    # Announce the run before it spends anything, so that a run which dies
+    # mid-way leaves a trace. Without this the ledger cannot distinguish "no
+    # tokens spent today" from "a run spent an unknown amount and never came
+    # back to say so" — and it is the second that lost three runs (D-45).
+    try:
+        from src.token_budget import TokenLedger
+
+        TokenLedger().begin()
+    except Exception:  # bookkeeping must never take down an unattended run
+        pass
+
     started = datetime.now(timezone.utc)
     wall_start = _now()
     outcomes: list[TicketOutcome] = []
@@ -370,6 +403,18 @@ def run(
             * max(1, getattr(stats, "cache_hits", 0) + getattr(stats, "attempted", 0))
         ),
         "rate_limit_pacing_seconds": round(getattr(stats, "paced_seconds", 0.0), 1),
+        # Measured from the provider's own usage figures, not estimated. The
+        # free tier's undocumented daily cap (D-40) is the binding constraint
+        # on how many runs fit in a day, and it cannot be planned against
+        # without knowing what a run actually costs.
+        "tokens_used": getattr(stats, "total_tokens", 0),
+        # Per CALL, not per ticket. A run that quota-exhausted partway made no
+        # calls for the remaining tickets, so dividing by ticket count reports a
+        # cost far below the real one and understates the next run's budget.
+        "tokens_per_provider_call": round(
+            getattr(stats, "total_tokens", 0) / max(1, getattr(stats, "succeeded", 0)), 1
+        ),
+        "quota_exhausted": bool(getattr(stats, "quota_exhausted", False)),
     }
 
     report = build_report(outcomes, run_meta)
@@ -379,6 +424,22 @@ def run(
         [r for t in {o.ticket_id for o in outcomes} for r in log.records_for(t)]
     )
     report["governance"]["tickets_in_log"] = len(log.logged_ticket_ids(run_id))
+
+    # Record what this run cost against the undocumented daily cap. Nothing
+    # else on the machine knows; the provider exposes the daily figure only in
+    # the body of a 429, by which point a run has already been lost (D-45).
+    # `begin()` was called before the first ticket; this closes that marker.
+    try:
+        from src.token_budget import TokenLedger
+
+        budget = TokenLedger().record(
+            run_meta["tokens_used"], exhausted=run_meta["quota_exhausted"]
+        )
+        report["run"]["daily_tokens_recorded"] = budget.spent
+        report["run"]["daily_tokens_remaining"] = budget.remaining
+    except Exception as exc:  # the ledger must never be able to fail a run
+        report["run"]["daily_tokens_recorded"] = None
+        report["run"]["ledger_error"] = str(exc)
 
     _write(output_path, report, outcomes)
     report["_outcomes"] = outcomes
@@ -415,6 +476,9 @@ def _write(output_path: Path, report: dict[str, Any], outcomes: list[TicketOutco
                     "confidence": o.classification.confidence if o.classification else None,
                     "cited_docs": [c.doc_id for c in (o.answer.citations if o.answer else ())],
                     "latency_seconds": round(o.latency_seconds, 3),
+                    "provider_wait_seconds": round(
+                        getattr(o, "provider_wait_seconds", 0.0), 3
+                    ),
                     "response": o.response_text,
                 }
                 for o in outcomes
@@ -446,6 +510,8 @@ def _markdown(report: dict[str, Any]) -> str:
         f"(of which {run_meta['rate_limit_pacing_seconds']}s rate-limit pacing)",
         f"- provider calls: {run_meta['provider_calls_attempted']} attempted, "
         f"{run_meta['cache_hits']} served from cache",
+        f"- tokens used: {run_meta['tokens_used']:,} "
+        f"({run_meta['tokens_per_provider_call']:.0f} per provider call)",
         "",
     ]
 
@@ -512,7 +578,11 @@ def _markdown(report: dict[str, Any]) -> str:
         (
             "| Processing latency p95 | < 3s | withheld (cache replay) |"
             if technical["processing_latency_p95_seconds"] is None
-            else f"| Processing latency p95 | < 3s | {technical['processing_latency_p95_seconds']:.2f}s |"
+            else (
+                f"| Processing latency p95 | < 3s | "
+                f"{technical['processing_latency_p95_excluding_provider_wait_seconds']:.2f}s "
+                f"(excl. provider wait; {technical['processing_latency_p95_seconds']:.2f}s incl.) |"
+            )
         ),
         f"| Classification fallback rate | — | {technical['classification_fallback_rate']:.1%} |",
         "",

@@ -28,7 +28,7 @@ jobs:
       # A12: the single documented command. No API key is set here on purpose —
       # the suite must pass on a clean checkout before credentials exist.
       - name: Run tests
-        run: pytest --cov=src --cov=evaluation --cov-report=term-missing:skip-covered
+        run: pytest --cov=src --cov=evaluation --cov=scripts --cov-report=term-missing:skip-covered
 
   secrets:
     # NFR-04: no credential may appear in the source or its history. A key found
