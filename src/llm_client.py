@@ -112,6 +112,10 @@ class CallStats:
     quota_exhausted: bool = False
     paced_seconds: float = 0.0
     paced_count: int = 0
+    # What the run actually cost, summed from the provider's own usage figures.
+    # The daily budget is the binding constraint on this project (D-40) and it
+    # was previously only ever estimated; an estimate is not a budget.
+    total_tokens: int = 0
 
 
 class _DiskCache:
@@ -309,6 +313,7 @@ class LLMClient:
             # Exponential moving average of what calls actually cost. The
             # provider reports it, so there is no need to guess.
             cost = float(observed)
+            self.stats.total_tokens += int(observed)
             self._observed_cost = (
                 cost if self._observed_cost is None else 0.7 * self._observed_cost + 0.3 * cost
             )
