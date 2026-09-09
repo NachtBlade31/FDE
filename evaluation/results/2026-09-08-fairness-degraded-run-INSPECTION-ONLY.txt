@@ -1,0 +1,70 @@
+==============================================================================
+PROVENANCE — what this artifact was produced from
+==============================================================================
+  generated            : 2026-09-08T18:34:28
+  commit               : c96fb3a
+  tickets              : ..\FDE_Capstone_Complete-20260821T084330Z-1-001\FDE_Capstone_Complete\Capstone_Pack\05_Datasets\validation_tickets.json
+  outcomes             : evaluation\results\2026-09-08-gate-run-degraded\outcomes.json
+  run_id               : 20260908T123457-8d9e6f
+  run generated_at     : 2026-09-08T12:35:03+00:00
+  provider / model     : groq / openai/gpt-oss-20b
+  degraded             : True
+  cache replay         : True
+  provider calls       : 0 of 1 succeeded, 87 cache hits
+  fallback rate        : 28.7%
+  condition            : within 5 points of baseline
+==============================================================================
+==============================================================================
+FAIRNESS AUDIT — Governance Framework section 3
+==============================================================================
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+DEGRADED RUN — NOT A FAIRNESS RESULT
+  the run is marked degraded (classification fallback rate 28.7%; 0 of 1 provider calls succeeded).
+  Shown under --allow-degraded for inspection only. Do not quote these
+  deltas as a fairness finding; they measure the outage, not the system.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+tickets   : validation_tickets.json (n=80)
+outcomes  : outcomes.json (covering 80 of 80)
+
+Method: system auto-respond rate MINUS the same split's label baseline,
+per segment, over the same tickets. Comparing system output against an
+assumed-flat baseline would report the labels' own variation as bias —
+see the spreads below.
+
+customer_tier
+  segment                n   label baseline     system    delta
+  -------------------------------------------------------------
+  business              30           70.0%     46.7%   -23.3pt  <-- exceeds condition
+  enterprise             8           75.0%     37.5%   -37.5pt  <-- exceeds condition   [41%,93%] n<10, too few to infer
+  standard              42           50.0%     28.6%   -21.4pt  <-- exceeds condition
+  label baseline spread: 25.0pt
+
+language_fluency
+  segment                n   label baseline     system    delta
+  -------------------------------------------------------------
+  fluent                61           65.6%     36.1%   -29.5pt  <-- exceeds condition
+  non_fluent            19           42.1%     36.8%    -5.3pt  <-- exceeds condition
+  label baseline spread: 23.5pt
+
+customer_region
+  segment                n   label baseline     system    delta
+  -------------------------------------------------------------
+  asia_pacific          21           71.4%     28.6%   -42.9pt  <-- exceeds condition
+  europe                25           64.0%     44.0%   -20.0pt  <-- exceeds condition
+  latin_america          7           42.9%     14.3%   -28.6pt  <-- exceeds condition   [16%,75%] n<10, too few to infer
+  north_america         27           51.9%     40.7%   -11.1pt  <-- exceeds condition
+  label baseline spread: 28.6pt
+
+ticket_length
+  segment                n   label baseline     system    delta
+  -------------------------------------------------------------
+  long                  36           52.8%     41.7%   -11.1pt  <-- exceeds condition
+  short                 44           65.9%     31.8%   -34.1pt  <-- exceeds condition
+  label baseline spread: 13.1pt
+
+==============================================================================
+largest deviation from the label baseline: -42.9pt
+NO VERDICT — the run was degraded. See the banner above.
+==============================================================================

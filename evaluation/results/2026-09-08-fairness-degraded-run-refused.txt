@@ -1,10 +1,32 @@
 ==============================================================================
+FAIRNESS AUDIT — NOT PRODUCED
+==============================================================================
+
+  Refusing to report per-segment deltas because the run is marked degraded (classification fallback rate 28.7%; 0 of 1 provider calls succeeded).
+
+  A run that lost its provider escalates whatever it could not classify,
+  which drags every segment negative at once. Published unqualified, that
+  reports an outage as bias against every customer group simultaneously —
+  which is false, and, being uniformly negative, superficially plausible.
+
+  Re-run the harness on a healthy budget and repeat this audit.
+  Pass --allow-degraded to override, for inspection only.
+
+  The label baselines below need no run and are always valid.
+==============================================================================
 PROVENANCE — what this artifact was produced from
 ==============================================================================
-  generated            : 2026-09-09T00:53:57
+  generated            : 2026-09-08T18:34:28
   commit               : c96fb3a
   tickets              : ..\FDE_Capstone_Complete-20260821T084330Z-1-001\FDE_Capstone_Complete\Capstone_Pack\05_Datasets\validation_tickets.json
-  outcomes             : none — baselines only
+  outcomes             : evaluation\results\2026-09-08-gate-run-degraded\outcomes.json
+  run_id               : 20260908T123457-8d9e6f
+  run generated_at     : 2026-09-08T12:35:03+00:00
+  provider / model     : groq / openai/gpt-oss-20b
+  degraded             : True
+  cache replay         : True
+  provider calls       : 0 of 1 succeeded, 87 cache hits
+  fallback rate        : 28.7%
   condition            : within 5 points of baseline
 ==============================================================================
 ==============================================================================

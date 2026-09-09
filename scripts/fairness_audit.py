@@ -17,8 +17,16 @@ segment. That is the pre-registered method from design section 2.4, fixed before
 any result was known, and it is valid whichever way the hidden set falls — which
 matters, because development and validation disagree on five separate measures.
 
+**It refuses to produce a result from a run it cannot trust.** A run that lost its
+provider mid-way escalates whatever it could not classify, which drags every
+segment negative at once; published unqualified, that reports an outage as bias
+against every customer group simultaneously. So the audit reads the run's
+`metrics.json`, and refuses when the run is marked `degraded` or
+`distribution_collapsed` — and refuses equally when there is *no* metrics file to
+check, because a guard that a file copy can silence is not a guard (D-44).
+
 Run:
-    python scripts/fairness_audit.py --outcomes evaluation/results/gate-run/outcomes.json \\
+    python scripts/fairness_audit.py --outcomes evaluation/results/<run>/outcomes.json \\
                                      --tickets  <the ticket file that run used>
 
 With no outcomes file it reports the label baselines alone, which is the half
@@ -28,8 +36,10 @@ that needs no model calls and is worth having on its own.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import math
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -47,6 +57,7 @@ PACK = (
 
 SEGMENTS = ("customer_tier", "language_fluency", "customer_region")
 CONDITION_POINTS = 5.0
+MIN_SEGMENT_N = 10
 
 
 def wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
@@ -97,8 +108,18 @@ def system_rates(
 def report_field(
     tickets: list[dict], outcomes: dict[str, str] | None, field: str
 ) -> list[float]:
-    base = baselines(tickets, field)
-    system = system_rates(tickets, outcomes, field) if outcomes else {}
+    """One segment field. A delta is the system's rate minus that segment's baseline.
+
+    Both rates are computed over the SAME tickets. If a run covered only part of
+    the file, comparing a 23-ticket system rate against a 30-ticket baseline
+    compares two different populations and reports the difference between them as
+    a fairness gap — so on a partial run the baseline is narrowed to match.
+    """
+    covered = (
+        [t for t in tickets if t.get("ticket_id") in outcomes] if outcomes else tickets
+    )
+    base = baselines(covered, field)
+    system = system_rates(covered, outcomes, field) if outcomes else {}
 
     print(f"\n{field}")
     header = f"  {'segment':<18} {'n':>5} {'label baseline':>16}"
@@ -120,8 +141,12 @@ def report_field(
             deltas.append(delta)
             flag = "  <-- exceeds condition" if abs(delta) > CONDITION_POINTS else ""
             line += f" {s_rate:>9.1%} {delta:>+7.1f}pt{flag}"
-        elif total < 10:
-            line += f"   [{lo:.0%},{hi:.0%}] too few to infer"
+        # The small-sample caveat applies to a delta at least as much as to a
+        # baseline: an 8-ticket segment moves 12.5 points per ticket. It used to
+        # print only when there were NO outcomes, so exactly the rows most likely
+        # to be quoted were the ones that carried no warning.
+        if total < MIN_SEGMENT_N:
+            line += f"   [{lo:.0%},{hi:.0%}] n<{MIN_SEGMENT_N}, too few to infer"
         print(line)
 
     if base:
@@ -131,11 +156,98 @@ def report_field(
     return deltas
 
 
+def git_commit() -> str:
+    try:
+        return (
+            subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                capture_output=True, text=True, cwd=REPO, timeout=10,
+            ).stdout.strip()
+            or "unknown"
+        )
+    except Exception:  # pragma: no cover - provenance must never break a run
+        return "unknown"
+
+
+def print_provenance(args, run: dict | None) -> None:
+    """Name the run this artifact describes (D-37).
+
+    An evidence file that does not identify its input cannot be checked against
+    anything. The earlier version of this script recorded neither the run it read
+    nor the commit it ran at, so its output could not be tied to any artifact.
+    """
+    print("=" * 78)
+    print("PROVENANCE — what this artifact was produced from")
+    print("=" * 78)
+    print(f"  generated            : {datetime.datetime.now().isoformat(timespec='seconds')}")
+    print(f"  commit               : {git_commit()}")
+    print(f"  tickets              : {args.tickets}")
+    print(f"  outcomes             : {args.outcomes or 'none — baselines only'}")
+    if run:
+        print(f"  run_id               : {run.get('run_id', 'unknown')}")
+        print(f"  run generated_at     : {run.get('generated_at', 'unknown')}")
+        print(f"  provider / model     : {run.get('provider')} / {run.get('model')}")
+        print(f"  degraded             : {run.get('degraded')}")
+        print(f"  cache replay         : {run.get('cache_replay')}")
+        print(f"  provider calls       : {run.get('provider_calls_succeeded')} of "
+              f"{run.get('provider_calls_attempted')} succeeded, "
+              f"{run.get('cache_hits')} cache hits")
+        print(f"  fallback rate        : {run.get('classification_fallback_rate', 0):.1%}")
+    print(f"  condition            : within {CONDITION_POINTS:.0f} points of baseline")
+    print("=" * 78)
+
+
+def load_run(args) -> tuple[dict | None, str | None]:
+    """Resolve the run's metrics and decide whether its outcomes may be reported.
+
+    Returns (run_metrics, refusal_reason). A missing metrics file is itself a
+    refusal: `outcomes.json` alone cannot say whether the run that produced it
+    completed healthily, and copying it away from its sibling used to disable the
+    guard with no warning at all.
+    """
+    metrics_path = args.metrics or (args.outcomes.parent / "metrics.json")
+    if not metrics_path.exists():
+        if args.no_metrics:
+            return None, None
+        return None, (
+            f"no metrics file was found at {metrics_path}.\n"
+            "  Without one there is no way to tell a healthy run from a degraded one;\n"
+            "  outcomes.json alone does not say. Pass --metrics PATH to point at it,\n"
+            "  or --no-metrics to accept the outcomes unverified."
+        )
+
+    run = json.loads(metrics_path.read_text(encoding="utf-8")).get("run", {})
+    if run.get("degraded") or run.get("distribution_collapsed"):
+        return run, (
+            f"the run is marked degraded (classification fallback rate "
+            f"{run.get('classification_fallback_rate', 0):.1%}; "
+            f"{run.get('provider_calls_succeeded', 0)} of "
+            f"{run.get('provider_calls_attempted', 0)} provider calls succeeded)."
+        )
+    # A cache replay is deliberately NOT a refusal. The outcomes in a replay are
+    # real routing decisions that really were made; what a replay cannot support
+    # is a timing or throughput claim (D-30), and this audit makes neither.
+    return run, None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--outcomes", type=Path, help="outcomes.json from a harness run")
     parser.add_argument(
         "--tickets", type=Path, default=PACK / "development_tickets.json"
+    )
+    parser.add_argument(
+        "--metrics", type=Path, help="metrics.json for the run (default: beside --outcomes)"
+    )
+    parser.add_argument(
+        "--allow-degraded",
+        action="store_true",
+        help="report deltas even from a degraded run (inspection only; output is labelled)",
+    )
+    parser.add_argument(
+        "--no-metrics",
+        action="store_true",
+        help="accept outcomes with no metrics file to check them against",
     )
     args = parser.parse_args()
 
@@ -145,19 +257,53 @@ def main() -> int:
     tickets = json.loads(args.tickets.read_text(encoding="utf-8"))
 
     outcomes = None
+    run = None
+    refusal = None
     if args.outcomes and args.outcomes.exists():
         rows = json.loads(args.outcomes.read_text(encoding="utf-8"))
         outcomes = {r["ticket_id"]: r["terminal_state"] for r in rows}
+        run, refusal = load_run(args)
 
+    overridden = bool(refusal and args.allow_degraded)
+    if refusal and not args.allow_degraded:
+        print("=" * 78)
+        print("FAIRNESS AUDIT — NOT PRODUCED")
+        print("=" * 78)
+        print(f"\n  Refusing to report per-segment deltas because {refusal}")
+        print(
+            "\n  A run that lost its provider escalates whatever it could not classify,\n"
+            "  which drags every segment negative at once. Published unqualified, that\n"
+            "  reports an outage as bias against every customer group simultaneously —\n"
+            "  which is false, and, being uniformly negative, superficially plausible.\n"
+            "\n  Re-run the harness on a healthy budget and repeat this audit.\n"
+            "  Pass --allow-degraded to override, for inspection only."
+        )
+        print("\n  The label baselines below need no run and are always valid.")
+        outcomes = None
+
+    print_provenance(args, run)
     print("=" * 78)
     print("FAIRNESS AUDIT — Governance Framework section 3")
     print("=" * 78)
+    if overridden:
+        print("\n" + "!" * 78)
+        print("DEGRADED RUN — NOT A FAIRNESS RESULT")
+        print(f"  {refusal}")
+        print("  Shown under --allow-degraded for inspection only. Do not quote these")
+        print("  deltas as a fairness finding; they measure the outage, not the system.")
+        print("!" * 78)
+
+    covered = len([t for t in tickets if t.get("ticket_id") in outcomes]) if outcomes else 0
     print(f"\ntickets   : {args.tickets.name} (n={len(tickets)})")
-    print(f"outcomes  : {args.outcomes.name if outcomes else 'none — baselines only'}")
+    if outcomes:
+        print(f"outcomes  : {args.outcomes.name} (covering {covered} of {len(tickets)})")
+    else:
+        print("outcomes  : none — baselines only")
     print(
         "\nMethod: system auto-respond rate MINUS the same split's label baseline,\n"
-        "per segment. Comparing system output against an assumed-flat baseline\n"
-        "would report the labels' own variation as bias — see the spreads below."
+        "per segment, over the same tickets. Comparing system output against an\n"
+        "assumed-flat baseline would report the labels' own variation as bias —\n"
+        "see the spreads below."
     )
 
     all_deltas: list[float] = []
@@ -168,11 +314,17 @@ def main() -> int:
     if outcomes:
         worst = max(all_deltas, key=abs) if all_deltas else 0.0
         print(f"largest deviation from the label baseline: {worst:+.1f}pt")
-        print(f"governance condition: within {CONDITION_POINTS:.0f} points")
-        print("VERDICT:", "HOLDS" if abs(worst) <= CONDITION_POINTS else "EXCEEDED — investigate")
+        if overridden:
+            print("NO VERDICT — the run was degraded. See the banner above.")
+        else:
+            print(f"governance condition: within {CONDITION_POINTS:.0f} points")
+            print(
+                "VERDICT:",
+                "HOLDS" if abs(worst) <= CONDITION_POINTS else "EXCEEDED — investigate",
+            )
     else:
-        print("Label baselines only. Re-run with --outcomes after a harness run to")
-        print("measure the system's deviation from them.")
+        print("Label baselines only. Re-run with --outcomes after a healthy harness")
+        print("run to measure the system's deviation from them.")
     print("=" * 78)
     return 0
 

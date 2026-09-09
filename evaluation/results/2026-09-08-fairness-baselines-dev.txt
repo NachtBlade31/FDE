@@ -1,13 +1,23 @@
 ==============================================================================
-FAIRNESS AUDIT — Governance Framework section 3
+PROVENANCE â€” what this artifact was produced from
+==============================================================================
+  generated            : 2026-09-09T00:53:57
+  commit               : c96fb3a
+  tickets              : ..\FDE_Capstone_Complete-20260821T084330Z-1-001\FDE_Capstone_Complete\Capstone_Pack\05_Datasets\development_tickets.json
+  outcomes             : none â€” baselines only
+  condition            : within 5 points of baseline
+==============================================================================
+==============================================================================
+FAIRNESS AUDIT â€” Governance Framework section 3
 ==============================================================================
 
 tickets   : development_tickets.json (n=500)
-outcomes  : none — baselines only
+outcomes  : none â€” baselines only
 
 Method: system auto-respond rate MINUS the same split's label baseline,
-per segment. Comparing system output against an assumed-flat baseline
-would report the labels' own variation as bias — see the spreads below.
+per segment, over the same tickets. Comparing system output against an
+assumed-flat baseline would report the labels' own variation as bias â€”
+see the spreads below.
 
 customer_tier
   segment                n   label baseline
@@ -41,6 +51,6 @@ ticket_length
   label baseline spread: 7.6pt
 
 ==============================================================================
-Label baselines only. Re-run with --outcomes after a harness run to
-measure the system's deviation from them.
+Label baselines only. Re-run with --outcomes after a healthy harness
+run to measure the system's deviation from them.
 ==============================================================================
