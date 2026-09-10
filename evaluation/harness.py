@@ -495,7 +495,19 @@ def _markdown(report: dict[str, Any]) -> str:
     business, technical, governance = report["business"], report["technical"], report["governance"]
 
     def pct(value):
-        return "withheld" if value is None else f"{value:.1%}"
+        """Percentage, rounded half UP.
+
+        Python's format uses banker's rounding, so 0.5625 printed as 56.2% while
+        every prose reference to it said 56.3% — the report and the artifact it
+        cited disagreed on the headline first-contact-resolution figure. Half-up
+        is what a reader assumes and what the report uses.
+        """
+        if value is None:
+            return "withheld"
+        from decimal import ROUND_HALF_UP, Decimal
+
+        q = Decimal(str(value * 100)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        return f"{q}%"
 
     lines = [
         "# Evaluation run",

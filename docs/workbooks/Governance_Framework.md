@@ -63,8 +63,8 @@ check stays meaningful. A grader running it twice would have hit this.
 | **R-04** | Some customer groups receive worse answers | High — and already true before the system existed | Severe at renewal | Every measure segmented by tier, region, fluency and ticket length, compared against **the same split's own label baseline**. See §3 — the baseline is not flat and its ordering inverts between splits. | Head of Support |
 | **R-05** | The documentation the system relies on goes stale | Medium | Moderate, and silent | Answers cite the document they came from, so a wrong answer can be traced to either the article or the system — Ines's requirement. **Limitation stated:** `last_reviewed_days_ago` is 0 for all 29 articles, so staleness is undetectable in this data. The control is design-level (surface article age beside every citation), not measurable here. | Technical Writer |
 | **R-06** | The model provider becomes unavailable | **High — it is a free tier, and it happened repeatedly during the build** | Moderate if handled | The run degrades to retrieval-only and completes: every ticket escalates with its retrieved context attached, which is still faster than today's 8–12 hour wait. The report is flagged `DEGRADED` and its business rates withheld. `src/pipeline.py`, `evaluation/harness.py` | Engineering |
-| **R-07** | Latency degrades under load | Medium | Moderate — chat customers abandon | Processing latency and wall clock are reported separately, because token-allowance pacing makes them diverge sharply — and pacing sleeps happen *inside* per-ticket processing, so they were landing in the very figure the 3s target is measured against. On the 10 Sep gate run 67% of measured per-ticket time (317.3s of 472.9s) was the client asleep waiting for the free tier's token allowance: p95 11.32s raw against 3.08s net, and a net mean of 1.94s. **The 3s p95 target is missed by 0.08s even net of waiting**, and is reported as missed. The harness now records provider wait per ticket and reports the p95 both ways, so neither figure can go missing. | Engineering |
-| **R-08** | Costs rise unexpectedly with volume | Low in money, **high in allowance** | Moderate | Free tier throughout. The binding constraint is 200,000 tokens/day ≈ 163 tickets — a limit that appears only in the error body, not the rate-limit headers. Exhaustion is detected and the run degrades rather than stalling. Cache hits and per-ticket call counts are reported. | Engineering |
+| **R-07** | Latency degrades under load | Medium | Moderate — chat customers abandon | Processing latency and wall clock are reported separately, because token-allowance pacing makes them diverge sharply — and pacing sleeps happen *inside* per-ticket processing, so they were landing in the very figure the 3s target is measured against. Across the two cold runs of 10 September, 67-73% of measured per-ticket time was the client asleep waiting for the free tier's token allowance. Net of that wait the p95 is **2.66s (run 2) and 3.08s (run 1)** — the 3s target falls inside the run-to-run band, and is reported as met in one run and missed in the other rather than settled either way. Raw, including the waiting, it is 10.51s and 11.32s. The harness now records provider wait per ticket and reports the p95 both ways, so neither figure can go missing. | Engineering |
+| **R-08** | Costs rise unexpectedly with volume | Low in money, **high in allowance** | Moderate | Free tier throughout. The binding constraint is 200,000 tokens/day ≈ **187 tickets** at the measured 652 tokens per call and 1.64 calls per ticket (D-45; the earlier estimate of 163 assumed 1,225 tokens a ticket, before any run had been measured) — a limit that appears only in the error body, not the rate-limit headers. Exhaustion is detected and the run degrades rather than stalling. Cache hits and per-ticket call counts are reported. | Engineering |
 | **R-09** | A security or compliance ticket is auto-answered | Medium — 17.4% of tickets and classification is imperfect | **Severe and non-recoverable** | Three independent layers plus grounding. **This one was rewritten mid-project** — see §4. | Head of Support |
 | **R-10** | A broken run is mistaken for a conservative one | Medium | Severe — it corrupts the evaluation | A provider outage produces 100% escalation, which is indistinguishable in the output from a very cautious working system. Two independent detectors: the degraded flag, and distribution collapse measured from the predictions themselves. Business rates are withheld when either fires. | Engineering |
 | **R-11** | Agents stop checking the system's drafts | Medium | Severe, and slow to notice | Every automated reply discloses that it was automated. Escalations state explicitly what the system was uncertain about rather than presenting a confident draft. | Head of Support |
@@ -101,12 +101,16 @@ A fairness claim measured on one split would be **backwards** on the other. This
 is the strongest argument for the pre-registered method, and it was found by
 measurement rather than anticipated.
 
-**Sample-size honesty.** Segments below ten tickets are reported with a 95%
-Wilson interval and labelled as unable to support inference. Validation has seven
-`latin_america` tickets, whose interval spans 16% to 75%. Until review this
-caveat printed only when no run was supplied — so it was suppressed on precisely
-the rows carrying a delta, including the `enterprise` figure (n=8) that a
-decision entry went on to quote. It is now unconditional.
+**Sample-size honesty.** Segments below ten tickets carry a 95% Wilson interval,
+are labelled as unable to support inference, and are **excluded from the headline
+verdict**. Validation has seven `latin_america` tickets, whose system rate spans
+**3% to 51%**. Two corrections were needed here, both found in review: the caveat
+printed only when no run was supplied, so it was suppressed on precisely the rows
+carrying a delta — including the `enterprise` figure (n=8) that a decision entry
+went on to quote — and the interval printed beside a system rate was the
+*baseline's*, which is how "16% to 75%" appeared in this paragraph describing the
+fix. The tool now prints the interval belonging to the rate it sits next to, and
+an under-powered segment can no longer set the verdict.
 
 **The audit refuses to run on a run it cannot trust.** This is the control that
 matters most in this section, and it exists because the audit got it wrong first.
@@ -131,7 +135,7 @@ wrong.
 
 In every refusing case it still prints the label baselines, which need no run and
 are always valid. The behaviour is pinned by `tests/test_fairness_audit.py`
-(15 cases) rather than by convention, because it is a governance control whose
+(21 cases) rather than by convention, because it is a governance control whose
 failure mode is a confident false finding about protected groups.
 
 Full reasoning: **D-44**. Recorded refusal:
@@ -151,14 +155,47 @@ degraded run two days earlier whose eleven deltas were all negative. Having now
 seen both patterns from the same tool, they do not resemble each other — which is
 the empirical case for the refusal control above.
 
+**But a delta is not a finding until it has been tested, and none of these
+survive.** The system's decision and the label are made on the *same* ticket, so
+the rates are paired and only the discordant tickets carry information. The audit
+therefore reports an exact paired (McNemar) p per segment, and a Holm adjustment
+across all eleven tested together:
+
+| Segment | n | Delta (run 2) | Discordant | p | Holm |
+|---|---|---|---|---|---|
+| `asia_pacific` | 21 | **−38.1pt** | 10 / 2 | 0.039 | 0.424 |
+| `north_america` | 27 | +14.8pt | 2 / 6 | 0.289 | 1.000 |
+| `europe` | 25 | +12.0pt | 2 / 5 | 0.453 | 1.000 |
+| `short` | 44 | −11.4pt | 8 / 3 | 0.227 | 1.000 |
+| `fluent` | 61 | −6.6pt | 12 / 8 | 0.503 | 1.000 |
+| `non_fluent` | 19 | +5.3pt | 4 / 5 | 1.000 | 1.000 |
+
+**Nothing survives correction at 0.05.** `asia_pacific` is the only segment with a
+raw p under 0.05, and eleven segments were tested at once — quoting the smallest
+of eleven as a finding is how a table like this manufactures one. So `europe` and
+`north_america` are *not* evidence that those regions are favoured; they are
+noise-consistent.
+
+The verdict above is on the **condition**, which is stated in percentage points
+and is missed as measured. That is a different statement from "this segment is
+treated unfairly", and the audit's own output now says so.
+
 **What Sofia said.** She believed non-fluent English tickets were handled worse
-and that nobody had noticed. On the healthy run `non_fluent` is **+5.3pt** and
-`fluent` is **−9.8pt**: relative to what the labels say each group should get,
-non-fluent tickets do slightly better. Her concern is why this audit exists, and
-the measurement does not support it — the real disparity is regional. On the
-supplied splits she is right on validation's *labels* and wrong on development
-— which means she identified a real risk that the development data would have
-told us was not there.
+and that nobody had noticed. `non_fluent` measures **+5.3pt** — nominally better
+than its baseline — but on a 4/5 discordant split, **p = 1.00**. Nineteen tickets
+cannot answer her question in either direction.
+
+An earlier version of this section said the measurement "does not support" her.
+That was too strong, and the distinction matters for a governance document: a
+stakeholder who raises a fairness concern and is told the data refutes it has been
+given a stronger answer than the data can give. The honest statement is that this
+run **cannot detect** the effect she describes. Her concern is why this audit
+exists; it deserves the live-traffic measurement in report §10.2 rather than a
+dismissal built on nineteen tickets.
+
+On the supplied splits she is right about validation's *labels* and wrong about
+development's — which is itself the point: she identified a risk that one split
+alone would have denied.
 
 ---
 

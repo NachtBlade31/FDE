@@ -1193,7 +1193,7 @@ degrades to retrieval-only. The same eight tickets that took 995 seconds of slee
 now complete in **6.6 seconds**, with the report correctly flagged `DEGRADED` and
 its business rates withheld.
 
-**2. The budget is roughly 163 tickets a day, in total.** At ~1,225 tokens a
+**2. The budget is roughly 163 tickets a day, in total.** *(Superseded by D-45: measured at 652 tokens per call and 1.64 calls per ticket, the real figure is ~187 a day. The estimate below predates any measured run and is kept because it is what the day's decisions were made on.)* At ~1,225 tokens a
 ticket, 200,000 tokens covers about 163 — across *all* runs that day, not per
 run. The hidden 120-ticket run fits comfortably, but only if the day's budget has
 not already been spent. I spent this day's on repeated gate runs while debugging
@@ -1283,7 +1283,7 @@ than cautious.
 split it was measured on, states the baseline alongside it, and does not
 generalise across splits. Segments with fewer than ten tickets are reported with
 their interval and labelled as unable to support inference — validation has seven
-`latin_america` tickets, whose 95% interval spans 16% to 75%.
+`latin_america` tickets, whose 95% interval spans 16% to 75% on the label baseline (and 3% to 51% on the system rate, which is the figure the audit now prints beside a delta — see D-46).
 
 > **Video line:** "The framework asks whether some customers get worse answers,
 > and says the gap should be under five points. In this data three of the four
@@ -1501,20 +1501,27 @@ and generation calls are larger than classification ones.
 The first validation run that did not degrade finally allowed the fairness audit
 to produce a result. It fails the five-point condition, at −38.1 points.
 
-| Segment | n | Label baseline | System | Delta |
-|---|---|---|---|---|
-| `asia_pacific` | 21 | 71.4% | 33.3% | **−38.1pt** |
-| `short` tickets | 44 | 65.9% | 50.0% | −15.9pt |
-| `fluent` | 61 | 65.6% | 55.7% | −9.8pt |
-| `business` | 30 | 70.0% | 70.0% | +0.0pt |
-| `non_fluent` | 19 | 42.1% | 47.4% | +5.3pt |
-| `north_america` | 27 | 51.9% | 59.3% | +7.4pt |
-| `europe` | 25 | 64.0% | 76.0% | +12.0pt |
+Both healthy runs, so the stability is visible:
 
-(`latin_america` n=7 and `enterprise` n=8 also exceed, and are flagged by the tool
-as too small to support an inference. They are not counted as evidence.)
+| Segment | n | Baseline | Run 1 | Run 2 | Discordant (run 2) | p | Holm |
+|---|---|---|---|---|---|---|---|
+| `asia_pacific` | 21 | 71.4% | −38.1pt | **−38.1pt** | 10 / 2 | 0.039 | 0.424 |
+| `north_america` | 27 | 51.9% | +7.4pt | +14.8pt | 2 / 6 | 0.289 | 1.000 |
+| `europe` | 25 | 64.0% | +12.0pt | +12.0pt | 2 / 5 | 0.453 | 1.000 |
+| `short` tickets | 44 | 65.9% | −15.9pt | −11.4pt | 8 / 3 | 0.227 | 1.000 |
+| `fluent` | 61 | 65.6% | −9.8pt | −6.6pt | 12 / 8 | 0.503 | 1.000 |
+| `long` tickets | 36 | 52.8% | +5.6pt | +5.6pt | 8 / 10 | 0.815 | 1.000 |
+| `non_fluent` | 19 | 42.1% | +5.3pt | +5.3pt | 4 / 5 | 1.000 | 1.000 |
+| `standard` | 42 | 50.0% | −4.8pt | −4.8pt | 9 / 7 | 0.804 | 1.000 |
+| `business` | 30 | 70.0% | +0.0pt | +3.3pt | 5 / 6 | 1.000 | 1.000 |
 
-Evidence: `evaluation/results/2026-09-10-fairness-validation.txt`.
+(`latin_america` n=7 and `enterprise` n=8 also exceed, are flagged by the tool as
+too small to support an inference, and are excluded from the verdict.)
+
+Evidence: `evaluation/results/2026-09-10-fairness-validation.txt`, which is **run
+2** (`…gate-run-2/`). An earlier version of this entry printed run 1's figures
+under that pointer — four of seven rows would not have reproduced for anyone who
+followed it. The run each column comes from is now named.
 
 **The mixed signs are the thing to notice.** Two days earlier the same tool,
 pointed at a degraded run, produced eleven deltas that were *all* negative — the
@@ -1618,6 +1625,28 @@ records its own activation. Corrected counts for the re-run: **45 auto-answered,
 against the 43 / 37 / 0 first published. Four tests now pin it, including one
 that a grounded draft is *not* blocked, since a control that blocks everything
 would also pass the other three.
+
+**A third case, found by the same question.** Reviewing the fix, the validator
+asked what else `_grounding` passes that it should not, and drove `"[1]"` through
+the pipeline. It was **released to the customer**: the marker resolves to a real
+passage, so grounding passed, and pii, instruction integrity, tone and confidence
+have nothing to object to. A bracket and a link, counted as a first-contact
+resolution with a citation. Grounding asked whether the citations resolve and
+never asked whether the draft said anything.
+
+Fixed inside `_grounding` rather than as a sixth guardrail, because FR-15
+specifies five and "is there a grounded answer here" is the question all three of
+its branches now ask: the citations resolve, they were actually given, and there
+are at least 20 characters of prose outside the markers. Four tests, one of which
+is the negative control — a short real answer citing `[1]` must still pass, or a
+control that blocks everything would look identical.
+
+**And one in the opposite direction.** `generate.py` tested `if
+INSUFFICIENT_CONTEXT in text` — a substring — so a draft that merely *mentioned*
+the token ("the passages give INSUFFICIENT_CONTEXT on your refund question") was
+discarded, its text thrown away, and reported as "no draft was produced at all".
+Same understatement of guardrail activations, opposite cause. Now `==`, which is
+what the prompt asks for.
 
 This is the second defect of its shape in this project. D-32's markers were
 "present but buying nothing"; this was "present but unreachable". Both were found

@@ -162,7 +162,14 @@ Reply with the answer text only."""
         text = (result.text or "").strip()
         if not text:
             return GeneratedAnswer(reason="Model returned an empty draft.")
-        if INSUFFICIENT_CONTEXT in text:
+        # `== INSUFFICIENT_CONTEXT`, not `in`. The prompt asks the model to reply
+        # with exactly that token when it cannot answer, and a substring test also
+        # caught any draft that merely *mentioned* it — "the passages give
+        # INSUFFICIENT_CONTEXT on your refund question" is a real answer, and it
+        # was being discarded, its text thrown away, and reported as "no draft was
+        # produced at all". That understates guardrail activations in the same
+        # direction as D-47 and leaves the human with nothing to work from.
+        if text.strip() == INSUFFICIENT_CONTEXT:
             return GeneratedAnswer(
                 reason="Model reported insufficient context to answer from the retrieved passages."
             )

@@ -40,8 +40,13 @@ GUARDRAIL_NAMES = (
     "confidence_floor",
 )
 
+# A draft has to say something. Roughly the length of a short clause; the point
+# is to exclude the degenerate case, not to police brevity.
+MIN_ANSWER_CHARACTERS = 20
+
 # --- private data -------------------------------------------------------------
 # Credential shapes and identifiers, not the words "key" or "password".
+_MARKER = re.compile(r"\[\d+\]")
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]+\b")
 _SECRET = re.compile(
     r"\b(?:gsk_[A-Za-z0-9]{16,}|sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}"
@@ -180,6 +185,28 @@ class Validator:
     # -- 2. grounding ----------------------------------------------------------
 
     def _grounding(self, answer: GeneratedAnswer) -> GuardrailResult:
+        """Is this a grounded answer at all?
+
+        Three ways it can fail to be one: it cites nothing that resolves, it
+        cites a passage it was never given, or — the case this missed until
+        review — it resolves perfectly and says nothing. `[1]` on its own passes
+        every other check: it is grounded, carries no private data, follows the
+        instructions and is in scope. It was released to the customer as a
+        bracket and a link, and counted as a first-contact resolution.
+
+        Kept inside grounding rather than added as a sixth guardrail because
+        FR-15 specifies five, and "is there a grounded answer here" is the
+        question all three branches ask.
+        """
+        prose = _MARKER.sub(" ", answer.text or "")
+        substance = sum(1 for ch in prose if ch.isalnum())
+        if answer.citations and substance < MIN_ANSWER_CHARACTERS:
+            return GuardrailResult(
+                "grounding",
+                False,
+                f"Response carries {substance} characters outside its citation "
+                f"markers; it cites a passage but answers nothing.",
+            )
         if not answer.citations:
             return GuardrailResult(
                 "grounding", False, "Response carried no citation resolving to a retrieved passage."

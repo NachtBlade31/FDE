@@ -292,3 +292,47 @@ def test_a_passing_response_releases_the_customer_text(validator):
     result = validator.validate(answer, _ticket(), confidence_applied=True)
 
     assert result.released_text == answer.customer_text
+
+
+# --- a draft that resolves perfectly and says nothing -------------------------
+#
+# `[1]` passes pii, instruction_integrity, tone_and_scope and confidence_floor,
+# and grounding used to pass it too: the marker resolves to a real passage. So it
+# was released — the customer received a bracket and a link, and the run counted
+# it as a first-contact resolution with a citation.
+
+
+def test_a_draft_that_is_only_a_citation_marker_is_blocked(validator):
+    result = validator.validate(_answer(text="[1]"), _ticket(), confidence_applied=True)
+
+    assert not result.passed
+    assert "grounding" in result.blocked_by
+    assert "answers nothing" in result.checks["grounding"].detail
+
+
+def test_a_draft_of_markers_and_punctuation_is_blocked(validator):
+    result = validator.validate(_answer(text="[1] [2]. — [1]!"), _ticket(), confidence_applied=True)
+
+    assert not result.passed
+    assert "grounding" in result.blocked_by
+
+
+def test_a_short_but_real_answer_citing_a_passage_is_not_blocked(validator):
+    """The control must exclude the degenerate case, not police brevity."""
+    result = validator.validate(
+        _answer(text="Rate limits apply per organisation, not per key [1]."),
+        _ticket(), confidence_applied=True,
+    )
+
+    assert result.checks["grounding"].passed
+
+
+def test_the_substance_check_does_not_replace_the_resolution_check(validator):
+    """A long, fluent draft that cites nothing is still ungrounded."""
+    result = validator.validate(
+        _answer(text="Rate limits apply per organisation, not per key.", citations=[]),
+        _ticket(), confidence_applied=True,
+    )
+
+    assert not result.passed
+    assert "no citation resolving" in result.checks["grounding"].detail

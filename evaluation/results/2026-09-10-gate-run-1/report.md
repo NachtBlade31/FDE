@@ -26,7 +26,7 @@ the rates can be recomputed under either taxonomy.
 | Measure | Target | Achieved |
 |---|---|---|
 | First contact resolution | ≥ 60% | 53.8% |
-| Escalation rate | ≤ 30% | 46.2% |
+| Escalation rate | ≤ 30% | 46.3% |
 | Repeat contacts | halved | not measurable |
 
 _Not measurable. Same-customer, same-intent within seven days yields 2 pairs across 500 development tickets. A single pass over independent tickets cannot produce this figure; reporting one would be fabrication._

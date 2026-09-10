@@ -265,7 +265,8 @@ feature.
 
 ## 6. Implementation
 
-453 tests, 95% branch coverage, one command (`pytest`), green on a clean checkout
+458 tests, 91% statement-and-branch coverage over `src/` and `evaluation/`
+(92% over `src/` alone), one command (`pytest`), green on a clean checkout
 without an API key.
 
 **What was difficult** — in each case the defect was invisible until the whole
@@ -358,8 +359,8 @@ this report tries to hold itself to elsewhere.
 **What a run costs.** Run 2 needed 129 completions for 80 tickets — 80
 classifications plus 49 generations (45 sent, 4 blocked) — at 651.5 tokens per
 provider call, 76,224 tokens with 12 served from cache. Cold-equivalent that is
-about 84,000 tokens, against the preflight's estimate of 84,755 for 80 tickets:
-**0.8% pessimistic**, which is the direction it is designed to err in but a much
+**84,042** tokens, against the preflight's estimate of **85,542** for 80 tickets:
+**1.8% pessimistic**, which is the direction it is designed to err in but a much
 narrower margin than it looks. The 12 cache hits are within-run duplicates — the
 validation split contains repeated ticket bodies — and are disclosed here because
 an undisclosed cache hit is how a throughput claim went wrong once already (D-30).
@@ -538,11 +539,19 @@ built so the two cannot be confused:
 - So the honest reading of `europe +12.0` and `north_america +14.8` is *not* that
   those regions are favoured. p = 0.45 and 0.29. They are noise-consistent.
 
-**What is nonetheless worth acting on.** The `asia_pacific` gap is **identical in
-both independent cold runs** — −38.1 points, from the same 10/2 discordant split
-each time — while other segments moved by up to 3 points between runs. A
-reproducible effect that fails a correction over eleven comparisons is a **lead**,
-not a result: the right response is to go and measure it properly on development
+**What is nonetheless worth acting on, stated carefully.** The `asia_pacific` gap
+is **identical in both independent cold runs** — −38.1 points, from the same 10/2
+discordant split each time. I first wrote that this made it distinctive, "while
+other segments moved by up to 3 points". That is false, and the validator caught
+it: **six of the eleven segments are identical between the two runs**,
+`asia_pacific` among them, and the largest movement is `north_america` at 7.4
+points (`enterprise`, at n=8, moved 12.5). Stability is the norm here, not the
+exception — both runs route the same 80 tickets and only a handful of decisions
+differ — so reproducibility is much weaker evidence than I made it sound.
+
+What is left is: the largest gap in the table, at the largest n of any exceeding
+segment, stable across two runs, and **not surviving correction over eleven
+comparisons**. That is a **lead**, not a result: the right response is to go and measure it properly on development
 data, which §10.2 sets out, and not to publish it as a finding or to tune against
 it. The Project Brief forbids tuning against validation, and the hidden set is
 drawn from the same population.
@@ -711,4 +720,4 @@ reported. Where a claim could not be verified it is labelled as unverified.
 - **F** — Governance Framework (risk register, fairness audit, incident procedure)
 - **G** — Decision record: 47 decisions with evidence (`docs/DECISIONS.md`)
 - **H** — Evaluation artifacts (`evaluation/results/`), each with a provenance banner
-- **I** — Validator charter and six review verdicts (`docs/VALIDATOR.md`)
+- **I** — Validator charter and ten review verdicts (`docs/VALIDATOR.md`)

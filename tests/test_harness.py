@@ -552,3 +552,28 @@ def test_a_ledger_failure_cannot_fail_the_run(paths, tmp_path, monkeypatch):
     assert report["volume"]["processed"] == 6
     assert report["run"]["daily_tokens_recorded"] is None
     assert "disk gone" in report["run"]["ledger_error"]
+
+
+def test_percentages_round_half_up_so_the_report_and_the_artifact_agree(paths):
+    """0.5625 formatted with `:.1%` is 56.2% (banker's rounding) while every
+    prose reference to it says 56.3%. The report was made self-consistent and the
+    artifact was not, so the disagreement landed on the headline FCR."""
+    from evaluation.harness import build_report
+
+    report = build_report([], {"ticket_count": 0})
+    assert report is not None  # build_report is importable; the check below is direct
+
+    source, out = paths()
+    run(input_path=source, output_path=out,
+        client=StubClient([_CLASSIFY, _ANSWER] * 60), storage_path=out / "storage")
+    text = (out / "report.md").read_text(encoding="utf-8")
+
+    # Whatever the rates are, the artifact must never print a half-even result
+    # that its own metrics.json rounds the other way.
+    metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+    fcr = metrics["business"]["first_contact_resolution"]
+    if fcr is not None:
+        from decimal import ROUND_HALF_UP, Decimal
+
+        expected = Decimal(str(fcr * 100)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        assert f"{expected}%" in text

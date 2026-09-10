@@ -25,7 +25,7 @@ the rates can be recomputed under either taxonomy.
 
 | Measure | Target | Achieved |
 |---|---|---|
-| First contact resolution | ≥ 60% | 56.2% |
+| First contact resolution | ≥ 60% | 56.3% |
 | Escalation rate | ≤ 30% | 43.8% |
 | Repeat contacts | halved | not measurable |
 
