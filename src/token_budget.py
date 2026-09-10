@@ -219,7 +219,11 @@ class TokenLedger:
         key = day or utc_day()
         entry = data.get(key) or {"tokens": 0, "runs": 0}
         entry["tokens"] = int(entry.get("tokens", 0)) + max(0, int(tokens))
-        entry["runs"] = int(entry.get("runs", 0)) + 1
+        if closes_run:
+            # Only a run counts as a run. A preflight probe spends tokens - which
+            # are counted above - but incrementing this too made the ledger claim
+            # more runs than were ever started.
+            entry["runs"] = int(entry.get("runs", 0)) + 1
         entry["exhausted"] = bool(entry.get("exhausted", False) or exhausted)
         if closes_run:
             # This run came back, so it is no longer unaccounted for. Note this

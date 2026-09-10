@@ -358,3 +358,11 @@ def test_a_probe_on_a_quiet_day_does_not_drive_in_flight_negative(ledger):
 
     assert ledger.view().complete
     assert ledger.view().spent == 700
+
+
+def test_a_probe_is_counted_in_tokens_but_not_in_runs(ledger):
+    ledger.record(700, closes_run=False)
+    view = ledger.record(1_000)
+
+    assert view.spent == 1_700
+    assert json.loads(ledger.path.read_text())[utc_day()]["runs"] == 1

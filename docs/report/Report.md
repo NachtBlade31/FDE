@@ -34,28 +34,31 @@ finds the existing answer, sends it only when four independent conditions agree,
 and otherwise hands the ticket to a person with the relevant article attached and
 an honest statement of what it was uncertain about.
 
-**What it achieved**, on the 80-ticket validation set, in a single unattended run.
-Every row here is reproducible from a committed artifact; the rows that are not
-are named as such rather than filled in, and §7.2 gives the reason.
+**What it achieved**, on the 80-ticket validation set, in a single unattended run
+that completed without degrading — `evaluation/results/2026-09-10-gate-run/`,
+0% classification fallback, no cache replay, 116 of 118 provider calls succeeded.
+Every row is reproducible from that artifact.
 
-| | Target | Achieved |
-|---|---|---|
-| **Deny-listed tickets auto-answered** | **0** | **0** |
-| Citation resolution | 100% | **100%** |
-| Retrieval hit rate @3 | — | **94.3%** |
-| Decision log reconciliation | exact | **passes** |
-| Tickets processed unattended | 80 | **80** |
-| Classification accuracy | ≥ 85% | 85.2% *(of the 54 tickets that reached the model)* |
-| Processing latency p95 | < 3s | *see §7.2* — 74% of measured time was rate-limit waiting |
-| First contact resolution | ≥ 60% | *withheld — run degraded* |
-| Escalation rate | ≤ 30% | *withheld — run degraded* |
+| | Target | Achieved | |
+|---|---|---|---|
+| **Deny-listed tickets auto-answered** | **0** | **0** | ✅ |
+| Citation resolution | 100% | **100%** | ✅ |
+| Classification accuracy | ≥ 85% | **87.5%** | ✅ |
+| Decision log reconciliation | exact | **passes**, 80/80 | ✅ |
+| Retrieval hit rate @3 | — | 94.3% | — |
+| First contact resolution | ≥ 60% | 53.8% | ❌ |
+| Escalation rate | ≤ 30% | 46.3% | ❌ *unreachable — see below* |
+| Processing latency p95 | < 3s | 3.08s net of provider waiting (11.32s raw) | ❌ *by 0.08s* |
+| Fairness: deviation from label baseline | within 5pt | −38.1pt (`asia_pacific`) | ❌ |
 
-Three attempts at a clean validation run on 8 September were lost to the free
-tier's undocumented daily token cap (§7.2, D-45). The last completed all 80
-tickets but lost the provider at ticket 54, so the reporter withheld its business
-rates rather than publishing an escalation rate produced by an outage. **The
-governance and functional results are unaffected and are measured; the business
-rates are outstanding.**
+**Four targets missed, and none of them quietly.** The escalation target is
+unreachable by construction (below). First-contact resolution of 53.8% sits 6.25
+points under validation's own label ceiling of 60.0% — so the gap is real but
+smaller than the target implies. The latency target is missed by 0.08 seconds at
+p95 once the free tier's rate-limit waiting is excluded; including it the figure
+is 11.32s, and 67% of measured per-ticket time was the client asleep. The
+fairness condition is exceeded and is the most substantive finding in this
+report — §8.3.
 
 **The single most important caveat.** The escalation target of ≤30% is
 unreachable without a governance breach, and this was established from the labels
@@ -299,44 +302,42 @@ produced under.
 
 ### 7.2 Results
 
-*Table 1 — validation set, 80 tickets. Every row names the committed artifact
-it comes from. Rows whose artifact no longer exists are marked as such rather
-than restated.*
+*Table 1 — validation set, 80 tickets, single unattended run.
+Source: `evaluation/results/2026-09-10-gate-run/`. The run did not degrade:
+`degraded: false`, `classification_fallback_rate: 0.0`, `cache_replay: false`,
+116 of 118 provider calls succeeded, 75,190 tokens.*
 
-| Measure | Baseline | Target | Achieved | Source artifact |
+| Measure | Baseline | Target | Achieved | |
 |---|---|---|---|---|
-| Retrieval hit rate @3 | — | — | **94.3%** | `2026-09-08-gate-run-cold/metrics.json` (53 eligible) |
-| Citation resolution | — | 100% | **100%** | same run; 27 answers, re-resolved |
-| Deny-list violations | — | 0 | **0** | same run, and every threshold in `2026-09-07-routing-200.txt` |
-| Decision log reconciliation | — | exact | **passes** | same run; 80 of 80 tickets |
-| Processing latency p95 | 8–12 hrs | <3s | **see below** | same run — 9.99s raw, 74% of it rate-limit sleep |
-| First contact resolution | 43.8% | ≥60% | *withheld* | run degraded; rates correctly suppressed |
-| Escalation rate | 56.2% | ≤30% | *withheld* | as above; see §7.4 for why the target is unreachable |
-| Classification accuracy | — | ≥85% | *pending* | see note |
+| First contact resolution | 43.8% | ≥60% | 53.8% | ❌ — 6.25pt under the label ceiling of 60.0% |
+| Escalation rate | 56.2% | ≤30% | 46.3% | ❌ — unreachable, §7.4 |
+| Classification accuracy | — | ≥85% | **87.5%** | ✅ |
+| Retrieval hit rate @3 | — | — | 94.3% | 53 eligible tickets |
+| Citation resolution | — | 100% | **100%** | ✅ 43 answers, re-resolved |
+| Processing latency p95 | 8–12 hrs | <3s | 3.08s net / 11.32s raw | ❌ by 0.08s |
+| Deny-list violations | — | 0 | **0** | ✅ condition, not target |
+| Decision log reconciliation | — | exact | **passes** | ✅ 80 of 80 |
+| Fairness deviation | — | within 5pt | −38.1pt | ❌ §8.3 |
 
-**Why four rows are not numbers.** Three attempts at a full validation run on
-8 September were lost to the free tier's undocumented daily token cap (D-45); the
-last stopped at ticket 54 of 80 and was correctly marked degraded, so its business
-rates were withheld by the reporter rather than published. An earlier, healthier
-validation run *did* produce 48.8% FCR, 51.2% escalation and 82.5% accuracy — the
-figures previously printed here — but it wrote to a generic output directory that
-a later run overwrote, so no committed artifact supports them. **They are
-therefore not restated as results.** The functional rows above are unaffected:
-they come from the surviving cold run and do not depend on the model reaching
-every ticket.
+**On latency, and why two figures.** 67% of measured per-ticket time (317.3s of
+473s) was the client asleep waiting for the free tier's token allowance, which is
+a property of an unpaid deployment rather than of the system. Net of that wait the
+mean is **1.94s** and the p95 is **3.08s**. So the target is missed by 0.08
+seconds, and I am reporting the miss rather than the mean: p95 is what the target
+names. Both figures come from the harness, which records provider wait per ticket
+— this is not a subtraction done by hand.
 
-Two supporting figures that *are* reproducible: classification accuracy over the
-54 tickets that reached the model was **85.2%** (46 of 54, derived from
-`technical.classification_accuracy` 0.575 across 80 with a 32.5% fallback rate),
-and per-class accuracy is in the same file. That is consistent with the 87%±2 dev
-figure, but it is a partial-run number and is reported as one.
+**What this run cost.** 75,190 tokens, 648.2 per provider call against the 646
+the preflight predicts, and 1.48 calls per ticket against a predicted 1.64. The
+estimate is 13% pessimistic, which is the direction it is designed to err in
+(D-45).
 
-**On latency.** The raw p95 of 9.99s is not a system measurement: **74% of total
-per-ticket processing time in that run (217.6s of 294.3s) was the client asleep
-waiting for the free tier's token allowance.** Net of that wait the mean is
-**0.96s**. The harness now records provider wait per ticket and reports both
-figures, so this is no longer a subtraction done by hand — but the p95 *net* of
-waiting needs one run under the new instrumentation, and is pending with the rest.
+**Three earlier attempts were lost** to the daily token cap on 8 September, and an
+earlier validation run that produced 48.8% FCR / 51.2% escalation / 82.5% accuracy
+wrote to a generic output directory a later run overwrote. Those figures appeared
+in earlier drafts of this table; no committed artifact supports them, so they are
+withdrawn rather than restated. Every figure above comes from the 10 September
+run, which is committed in full.
 
 ### 7.3 Calibration — a failed condition, reported as one
 
@@ -445,9 +446,59 @@ outcomes were supplied, so it was suppressed on exactly the delta rows most
 likely to be quoted (`enterprise`, n=8; `latin_america`, n=7). It is now
 unconditional.
 
-Sofia believed non-fluent English tickets were handled worse and that nobody had
-noticed. She is right on validation and wrong on development — she identified a
-real risk that the development data alone would have denied.
+**The result, and it fails the condition.**
+`evaluation/results/2026-09-10-fairness-validation.txt`:
+
+| Segment | n | Label baseline | System | Delta |
+|---|---|---|---|---|
+| `asia_pacific` | 21 | 71.4% | 33.3% | **−38.1pt** |
+| `latin_america` | 7 | 42.9% | 14.3% | −28.6pt *(n<10, cannot support inference)* |
+| `enterprise` | 8 | 75.0% | 37.5% | −37.5pt *(n<10, cannot support inference)* |
+| `short` tickets | 44 | 65.9% | 50.0% | −15.9pt |
+| `fluent` | 61 | 65.6% | 55.7% | −9.8pt |
+| `standard` | 42 | 50.0% | 45.2% | −4.8pt ✅ |
+| `business` | 30 | 70.0% | 70.0% | **+0.0pt** ✅ |
+| `non_fluent` | 19 | 42.1% | 47.4% | +5.3pt |
+| `long` tickets | 36 | 52.8% | 58.3% | +5.6pt |
+| `north_america` | 27 | 51.9% | 59.3% | +7.4pt |
+| `europe` | 25 | 64.0% | 76.0% | +12.0pt |
+
+**Verdict: EXCEEDED.** The largest deviation is −38.1 points, against a condition
+of five. This is reported as a failed condition, in the same way calibration is
+(§7.3), and not softened.
+
+**The deltas have mixed signs, and that is the point.** When this audit was
+pointed at a *degraded* run it returned eleven deltas that were all negative,
+which is what an outage looks like — everything escalates, so every segment falls
+together. A genuine measurement looks like this instead: some segments above
+their baseline, some below. The refusal control in `scripts/fairness_audit.py`
+exists precisely so that the first pattern cannot be published as the second
+(D-44), and having now seen both, the shapes are not similar.
+
+**The substantive finding is `asia_pacific`.** Its labels say 71.4% of those
+tickets should be answerable — the *highest* of any region on this split — and
+the system answers 33.3%. It is the largest well-powered gap in the table (n=21),
+and it runs opposite to `europe` at +12.0pt. That is a real disparity in service
+quality between two regions, and it is not explained by the labels, because the
+labels are what it is measured against.
+
+I am not shipping a fix derived from it. The Project Brief forbids tuning against
+validation, and the hidden set is drawn from the same population, so tuning here
+would be both a rule violation and self-defeating. §10.2 carries it as the first
+thing to investigate on development data.
+
+**Sofia's hypothesis is not supported by this run.** She believed non-fluent
+English tickets were handled worse and that nobody had noticed. On this
+measurement `non_fluent` is **+5.3pt** — above its baseline — while `fluent` is
+−9.8pt. Relative to what the labels say each group should receive, non-fluent
+tickets do slightly better. Her concern was worth taking seriously and worth
+measuring; the measurement does not bear it out, and the region gap she did not
+raise is larger than the fluency gap she did.
+
+One caveat that cuts against over-reading any of this: `latin_america` (n=7) and
+`enterprise` (n=8) carry intervals spanning roughly 16–75% and 41–93%. Both are
+flagged in the audit output as too small to support an inference, and neither is
+counted as evidence here.
 
 **The audit refuses to run on a degraded run.** Pointed at a degraded run it
 returned eleven negative deltas — −42.9pt (asia_pacific) to −5.3pt (non_fluent) —
@@ -464,11 +515,6 @@ need no run and are always valid (D-44). It also refuses when *no* metrics file 
 present, because copying `outcomes.json` into the dated-evidence layout used to
 disable the guard silently. A cache replay is still accepted — replayed outcomes
 are real routing decisions; only degradation invalidates them.
-
-**The current figure is therefore the baselines alone.** A published per-segment
-delta needs one non-degraded full-set run. Three attempts on 8 September were lost
-to the free tier's daily token cap (D-45); the fourth is scheduled for the next
-UTC window.
 
 ### 8.4 The kill switch
 
@@ -508,32 +554,48 @@ Full log with triggers and dates: Stage 5 workbook.
 
 ### 10.1 What was delivered
 
-A system that clears the gate — 80 tickets, one command, unattended, zero
-governance violations, a reconciling decision log, every ticket accounted for
-even after the provider stopped answering at ticket 54.
+A system that clears the gate — 80 tickets, one command, unattended, no
+degradation, zero deny-list violations, a reconciling decision log, and a
+per-ticket audit trail for all 80.
 
-Its **business** rates are not among the results, and that is the honest state of
-this submission rather than a formatting choice: the runs that produced them were
-lost to the free tier's daily token cap, and the reporter withholds rates from a
-degraded run by design (§7.2, D-45). The functional and governance criteria are
-measured and committed; the business figures need one clean run in a fresh UTC
-token window. On the development set, where the budget stretched further, the
-system reaches **64.0% first-contact resolution at its shipped margin of 0.85,
-against a 65.2% day-zero prediction** (`2026-09-07-routing-200.txt`) — which is
-what I would expect it to approach on validation, and I am deliberately not
-presenting an expectation as a result.
+**Four of nine targets are missed**, and the report says so in its first table
+rather than its last. One of them — the escalation rate — is unreachable by
+construction and was known to be on day zero. One is missed by 0.08 seconds. One,
+first-contact resolution at 53.8%, sits 6.25 points below validation's own label
+ceiling of 60.0%: a real gap, and smaller than the raw target comparison suggests.
+
+**The fourth is the fairness condition, and it is the finding I would lead with.**
+The system auto-answers 33.3% of `asia_pacific` tickets where the labels say 71.4%
+are answerable — a −38.1 point deviation against a five-point condition, running
+opposite to `europe` at +12.0. It is well powered (n=21), it is not explained by
+the labels, and it was invisible until there was a healthy run to measure. A
+submission that reported only the eight things that went well would be a less
+useful document than this one.
+
+What I am most confident in is the negative result: **zero deny-listed tickets
+auto-answered, at every threshold tested, across every run including the degraded
+ones.** That is a condition rather than a target, and it held throughout.
 
 ### 10.2 What I would do next
 
 1. **Renegotiate the escalation target before launch**, not after. It is
    unreachable without a governance breach and pretending otherwise sets up a
    failure that is nobody's fault.
-2. **Measure the fluency gap on live tickets.** The two supplied splits disagree
-   by 23.5 points and invert. Neither can be trusted as a baseline.
-3. **A continuous human review sample in production.** The residual harm named in
+2. **Investigate the `asia_pacific` gap on development data.** −38.1 points
+   against its label baseline (§8.3), the largest well-powered disparity the
+   audit found, and opposite in sign to `europe`. The first question is whether
+   the corpus simply covers that segment's intents less well, which retrieval
+   scores per segment would answer, or whether the classifier is less accurate on
+   its phrasing. Deliberately not fixed here: the brief forbids tuning against
+   validation, and the hidden set comes from the same population.
+3. **Measure the fluency gap on live tickets.** The two supplied splits disagree
+   by 23.5 points and invert, and Sofia's hypothesis — that non-fluent tickets are
+   handled worse — is contradicted by the one healthy run (+5.3pt). Neither split
+   can be trusted as a baseline for a question this consequential.
+4. **A continuous human review sample in production.** The residual harm named in
    §8 — a correctly cited but misapplied passage — is invisible to every
    automated control in the system.
-4. **Re-sort the queue by urgency.** High-urgency tickets currently have *worse*
+5. **Re-sort the queue by urgency.** High-urgency tickets currently have *worse*
    resolution (39.7% vs 48.4%) and longer handling, because the queue is sorted by
    age. This is a finding the system does not yet act on.
 

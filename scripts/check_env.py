@@ -69,6 +69,38 @@ def budget_report(tickets: int = 120) -> str:
     )
 
 
+def gate(view, tickets: int = 120) -> tuple[bool, str]:
+    """May a run of this size be started? Returns (allowed, why not).
+
+    Separated from `main()` so it can be tested without a provider. This is the
+    control that is supposed to stop a fourth run being lost to the daily cap,
+    and while it lived inside `main()` nothing exercised it end to end — the
+    tests reached past it to `view.fits()` and asserted on that instead, which
+    is not the same thing as asserting the script refuses.
+    """
+    cost = estimated_run_cost(tickets)
+    if view.fits(cost):
+        return True, ""
+    if view.exhausted:
+        return False, (
+            f"  The provider already refused a run today with 'quota exhausted'.\n"
+            f"  A {tickets}-ticket run needs about {cost:,} tokens and will not get\n"
+            f"  them. Probing would spend tokens to learn nothing. Wait for 00:00 UTC."
+        )
+    if not view.complete:
+        return False, (
+            "  A run started today and never recorded what it spent, so the figure\n"
+            "  above is a floor rather than a total. Refusing on incomplete records\n"
+            "  rather than guessing downwards. Wait for 00:00 UTC, or clear the\n"
+            "  stale entry in storage/token_ledger.json if you know the run died."
+        )
+    return False, (
+        f"  A {tickets}-ticket run needs about {cost:,} tokens and only\n"
+        f"  {view.remaining:,} remain on this UTC day. Probing would spend tokens\n"
+        f"  to learn nothing. Wait for 00:00 UTC."
+    )
+
+
 def main() -> int:
     settings = Settings.from_env()
 
@@ -89,11 +121,10 @@ def main() -> int:
     print("\nConfiguration resolves. Model access available.\n")
     print(budget_report())
 
-    if not TokenLedger().view().fits(estimated_run_cost(120)):
-        print(
-            "\n  A 120-ticket run does not fit in what the ledger believes is left.\n"
-            "  Probing would spend tokens to learn nothing. Wait for 00:00 UTC."
-        )
+    allowed, why_not = gate(TokenLedger().view(), 120)
+    if not allowed:
+        print()
+        print(why_not)
         return 1
 
     # A representative probe, not a token one, and never a cached one.

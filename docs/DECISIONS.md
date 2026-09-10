@@ -1485,6 +1485,67 @@ and generation calls are larger than classification ones.
 
 ---
 
+## D-46 · The fairness condition fails, and the failure is specific
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-10 · **Status:** Reported, not fixed
+
+The first validation run that did not degrade finally allowed the fairness audit
+to produce a result. It fails the five-point condition, at −38.1 points.
+
+| Segment | n | Label baseline | System | Delta |
+|---|---|---|---|---|
+| `asia_pacific` | 21 | 71.4% | 33.3% | **−38.1pt** |
+| `short` tickets | 44 | 65.9% | 50.0% | −15.9pt |
+| `fluent` | 61 | 65.6% | 55.7% | −9.8pt |
+| `business` | 30 | 70.0% | 70.0% | +0.0pt |
+| `non_fluent` | 19 | 42.1% | 47.4% | +5.3pt |
+| `north_america` | 27 | 51.9% | 59.3% | +7.4pt |
+| `europe` | 25 | 64.0% | 76.0% | +12.0pt |
+
+(`latin_america` n=7 and `enterprise` n=8 also exceed, and are flagged by the tool
+as too small to support an inference. They are not counted as evidence.)
+
+Evidence: `evaluation/results/2026-09-10-fairness-validation.txt`.
+
+**The mixed signs are the thing to notice.** Two days earlier the same tool,
+pointed at a degraded run, produced eleven deltas that were *all* negative — the
+signature of an outage, where everything escalates and every segment falls
+together. D-44 built a refusal control on exactly that distinction. This is the
+first time both patterns have been observed with the same code, and they do not
+resemble each other: a real measurement has segments on both sides of their
+baseline. The control was worth building.
+
+**The substantive gap is regional, and it is not one I predicted.** `asia_pacific`
+has the *highest* label baseline of any region on this split (71.4%) and receives
+the *lowest* service (33.3%), while `europe` runs 12 points above its own
+baseline. Two hypotheses are worth separating on development data: the corpus may
+cover that segment's intents less well, which per-segment retrieval scores would
+show; or the classifier may be less accurate on its phrasing, which per-segment
+accuracy would show. Both are measurable without touching validation.
+
+**Not fixed here, deliberately.** The Project Brief forbids tuning against
+validation, and the hidden set is drawn from the same population — so a fix
+derived from this table would be both a rule violation and self-defeating. It is
+carried into report §10.2 as the first thing to investigate.
+
+**And Sofia's hypothesis is not supported.** She believed non-fluent English
+tickets were being handled worse and that nobody had noticed. Measured against
+what the labels say each group should receive, `non_fluent` is +5.3pt and
+`fluent` is −9.8pt. Her concern was worth taking seriously and worth instrumenting
+— the fairness audit exists partly because she raised it — and the answer is that
+the disparity is real but regional, not linguistic. Recording that the stakeholder
+who prompted the measurement was wrong about its direction seems more useful than
+quietly dropping the thread.
+
+> **Video line:** "The fairness audit finally ran on a healthy run, and it failed.
+> Asia-Pacific tickets get answered a third of the time where the labels say
+> seventy percent are answerable — while Europe runs twelve points *above* its
+> baseline. And notice the signs go both ways: that is what a real fairness
+> result looks like, as opposed to the all-negative one an outage produced two
+> days earlier."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |

@@ -63,7 +63,7 @@ check stays meaningful. A grader running it twice would have hit this.
 | **R-04** | Some customer groups receive worse answers | High — and already true before the system existed | Severe at renewal | Every measure segmented by tier, region, fluency and ticket length, compared against **the same split's own label baseline**. See §3 — the baseline is not flat and its ordering inverts between splits. | Head of Support |
 | **R-05** | The documentation the system relies on goes stale | Medium | Moderate, and silent | Answers cite the document they came from, so a wrong answer can be traced to either the article or the system — Ines's requirement. **Limitation stated:** `last_reviewed_days_ago` is 0 for all 29 articles, so staleness is undetectable in this data. The control is design-level (surface article age beside every citation), not measurable here. | Technical Writer |
 | **R-06** | The model provider becomes unavailable | **High — it is a free tier, and it happened repeatedly during the build** | Moderate if handled | The run degrades to retrieval-only and completes: every ticket escalates with its retrieved context attached, which is still faster than today's 8–12 hour wait. The report is flagged `DEGRADED` and its business rates withheld. `src/pipeline.py`, `evaluation/harness.py` | Engineering |
-| **R-07** | Latency degrades under load | Medium | Moderate — chat customers abandon | Processing latency and wall clock are reported separately, because token-allowance pacing makes them diverge sharply — and pacing sleeps happen *inside* per-ticket processing, so they were landing in the very figure the 3s target is measured against. On the 8 Sep cold run 74% of measured per-ticket time (217.6s of 294.3s) was the client asleep waiting for the free tier's token allowance: a raw mean of 3.68s against a work-only mean of 0.96s. The harness now records provider wait per ticket and reports the p95 both ways, so neither figure can go missing. | Engineering |
+| **R-07** | Latency degrades under load | Medium | Moderate — chat customers abandon | Processing latency and wall clock are reported separately, because token-allowance pacing makes them diverge sharply — and pacing sleeps happen *inside* per-ticket processing, so they were landing in the very figure the 3s target is measured against. On the 10 Sep gate run 67% of measured per-ticket time (317.3s of 472.9s) was the client asleep waiting for the free tier's token allowance: p95 11.32s raw against 3.08s net, and a net mean of 1.94s. **The 3s p95 target is missed by 0.08s even net of waiting**, and is reported as missed. The harness now records provider wait per ticket and reports the p95 both ways, so neither figure can go missing. | Engineering |
 | **R-08** | Costs rise unexpectedly with volume | Low in money, **high in allowance** | Moderate | Free tier throughout. The binding constraint is 200,000 tokens/day ≈ 163 tickets — a limit that appears only in the error body, not the rate-limit headers. Exhaustion is detected and the run degrades rather than stalling. Cache hits and per-ticket call counts are reported. | Engineering |
 | **R-09** | A security or compliance ticket is auto-answered | Medium — 17.4% of tickets and classification is imperfect | **Severe and non-recoverable** | Three independent layers plus grounding. **This one was rewritten mid-project** — see §4. | Head of Support |
 | **R-10** | A broken run is mistaken for a conservative one | Medium | Severe — it corrupts the evaluation | A provider outage produces 100% escalation, which is indistinguishable in the output from a very cautious working system. Two independent detectors: the degraded flag, and distribution collapse measured from the predictions themselves. Business rates are withheld when either fires. | Engineering |
@@ -137,8 +137,26 @@ failure mode is a confident false finding about protected groups.
 Full reasoning: **D-44**. Recorded refusal:
 `evaluation/results/2026-09-08-fairness-degraded-run-refused.txt`.
 
+**The result — the condition fails.** Measured on the first validation run that
+did not degrade (`evaluation/results/2026-09-10-fairness-validation.txt`), the
+largest deviation from the label baseline is **−38.1pt** (`asia_pacific`, n=21,
+71.4% baseline against 33.3% delivered), against a five-point condition.
+`europe` runs **+12.0pt** the other way. Reported as a failed condition, not
+softened, and deliberately not fixed: the brief forbids tuning against
+validation, and the hidden set comes from the same population. Carried into
+report §10.2 as the first thing to investigate on development data.
+
+The deltas have **mixed signs**, which is what distinguishes this from the
+degraded run two days earlier whose eleven deltas were all negative. Having now
+seen both patterns from the same tool, they do not resemble each other — which is
+the empirical case for the refusal control above.
+
 **What Sofia said.** She believed non-fluent English tickets were handled worse
-and that nobody had noticed. She is right on validation and wrong on development
+and that nobody had noticed. On the healthy run `non_fluent` is **+5.3pt** and
+`fluent` is **−9.8pt**: relative to what the labels say each group should get,
+non-fluent tickets do slightly better. Her concern is why this audit exists, and
+the measurement does not support it — the real disparity is regional. On the
+supplied splits she is right on validation's *labels* and wrong on development
 — which means she identified a real risk that the development data would have
 told us was not there.
 

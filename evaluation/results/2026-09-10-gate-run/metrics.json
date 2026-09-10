@@ -1,0 +1,206 @@
+{
+  "run": {
+    "run_id": "20260910T124603-e5dc08",
+    "generated_at": "2026-09-10T12:46:12+00:00",
+    "input_path": "..\\FDE_Capstone_Complete-20260821T084330Z-1-001\\FDE_Capstone_Complete\\Capstone_Pack\\05_Datasets\\validation_tickets.json",
+    "output_path": "evaluation\\results\\2026-09-10-gate-run",
+    "ticket_count": 80,
+    "model": "openai/gpt-oss-20b",
+    "provider": "groq",
+    "confidence_threshold": 0.85,
+    "relevance_floor": 0.4,
+    "wall_clock_seconds": 479.3,
+    "degraded": false,
+    "distribution_collapsed": false,
+    "collapse_signal": null,
+    "classification_fallback_rate": 0.0,
+    "dominant_predicted_class": "billing_query",
+    "provider_calls_attempted": 118,
+    "provider_calls_succeeded": 116,
+    "cache_hits": 11,
+    "cache_replay": false,
+    "rate_limit_pacing_seconds": 317.3,
+    "tokens_used": 75190,
+    "tokens_per_provider_call": 648.2,
+    "quota_exhausted": false,
+    "daily_tokens_recorded": 75744,
+    "daily_tokens_remaining": 124256
+  },
+  "volume": {
+    "processed": 80,
+    "answered_automatically": 43,
+    "escalated": 37,
+    "blocked_by_guardrails": 0,
+    "escalated_without_a_block": 37
+  },
+  "business": {
+    "first_contact_resolution": 0.5375,
+    "escalation_rate": 0.4625,
+    "mean_seconds_to_reply": 5.910825107500204,
+    "median_seconds_to_reply": 5.575259599994752,
+    "repeat_contacts": null,
+    "repeat_contacts_note": "Not measurable. Same-customer, same-intent within seven days yields 2 pairs across 500 development tickets. A single pass over independent tickets cannot produce this figure; reporting one would be fabrication.",
+    "satisfaction_proxy": null,
+    "satisfaction_proxy_note": "Requires rubric-scored human review of a sample; not produced by this run."
+  },
+  "technical": {
+    "classification_accuracy": 0.875,
+    "classification_fallback_rate": 0.0,
+    "per_class": {
+      "account_access": {
+        "n": 4,
+        "accuracy": 0.25
+      },
+      "api_key_issue": {
+        "n": 6,
+        "accuracy": 1.0
+      },
+      "api_usage_question": {
+        "n": 4,
+        "accuracy": 0.75
+      },
+      "authentication_failure": {
+        "n": 3,
+        "accuracy": 0.6666666666666666
+      },
+      "billing_query": {
+        "n": 10,
+        "accuracy": 1.0
+      },
+      "compliance_request": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "configuration_help": {
+        "n": 3,
+        "accuracy": 1.0
+      },
+      "data_export": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "data_residency": {
+        "n": 6,
+        "accuracy": 0.6666666666666666
+      },
+      "database_issue": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "deployment_failure": {
+        "n": 5,
+        "accuracy": 1.0
+      },
+      "feature_request": {
+        "n": 3,
+        "accuracy": 0.6666666666666666
+      },
+      "integration_help": {
+        "n": 3,
+        "accuracy": 0.6666666666666666
+      },
+      "onboarding": {
+        "n": 4,
+        "accuracy": 1.0
+      },
+      "performance_degradation": {
+        "n": 3,
+        "accuracy": 1.0
+      },
+      "quota_or_overage": {
+        "n": 2,
+        "accuracy": 1.0
+      },
+      "rate_limit": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "rollback_request": {
+        "n": 6,
+        "accuracy": 1.0
+      },
+      "security_incident": {
+        "n": 4,
+        "accuracy": 1.0
+      },
+      "sso_configuration": {
+        "n": 1,
+        "accuracy": 1.0
+      },
+      "unclear_request": {
+        "n": 6,
+        "accuracy": 0.8333333333333334
+      },
+      "webhook_issue": {
+        "n": 3,
+        "accuracy": 1.0
+      }
+    },
+    "retrieval_hit_rate_at_k": 0.9433962264150944,
+    "retrieval_eligible_tickets": 53,
+    "citation_resolution_rate": 1.0,
+    "answers_with_citations": 43,
+    "processing_latency_mean_seconds": 5.910825107500204,
+    "processing_latency_p95_seconds": 11.321966599993175,
+    "processing_latency_p95_excluding_provider_wait_seconds": 3.0781991862379314,
+    "provider_wait_share_of_processing": 0.671,
+    "latency_withheld_reason": null,
+    "latency_note": "Processing latency per ticket, and the same figure with the free tier's enforced rate-limit waiting removed; the target is about system work, not about queueing imposed by an unpaid tier. Wall clock for the whole run includes waiting for the provider's token allowance to reset and is reported under run."
+  },
+  "governance": {
+    "deny_list_violations": 0,
+    "deny_list_violation_ids": [],
+    "deny_list_condition_holds": true,
+    "private_data_occurrences_in_released_text": 0,
+    "responses_blocked_for_private_data": 0,
+    "guardrail_activations": {},
+    "segments": {
+      "customer_tier": {
+        "business": {
+          "n": 30,
+          "auto_respond_rate": 0.7
+        },
+        "enterprise": {
+          "n": 8,
+          "auto_respond_rate": 0.375
+        },
+        "standard": {
+          "n": 42,
+          "auto_respond_rate": 0.4523809523809524
+        }
+      },
+      "language_fluency": {
+        "fluent": {
+          "n": 61,
+          "auto_respond_rate": 0.5573770491803278
+        },
+        "non_fluent": {
+          "n": 19,
+          "auto_respond_rate": 0.47368421052631576
+        }
+      },
+      "customer_region": {
+        "asia_pacific": {
+          "n": 21,
+          "auto_respond_rate": 0.3333333333333333
+        },
+        "europe": {
+          "n": 25,
+          "auto_respond_rate": 0.76
+        },
+        "latin_america": {
+          "n": 7,
+          "auto_respond_rate": 0.14285714285714285
+        },
+        "north_america": {
+          "n": 27,
+          "auto_respond_rate": 0.5925925925925926
+        }
+      }
+    },
+    "decision_log_reconciles": true,
+    "decision_log_reconcile_error": "",
+    "decisions_logged": 934,
+    "tickets_in_log": 80
+  }
+}
