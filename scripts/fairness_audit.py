@@ -60,6 +60,46 @@ CONDITION_POINTS = 5.0
 MIN_SEGMENT_N = 10
 
 
+def mcnemar_exact(b: int, c: int) -> float:
+    """Two-sided exact p for a paired binary comparison.
+
+    The system's decision and the label are made on the SAME ticket, so the two
+    rates are paired and an unpaired comparison overstates the evidence. `b` and
+    `c` are the discordant counts: tickets the label says auto-respond and the
+    system escalated, and the reverse. Concordant tickets carry no information
+    about the difference and drop out — which is why a 30-ticket segment can
+    still be uninformative.
+
+    Under the null the discordant pairs split 50/50, so this is a two-sided
+    binomial test at p=0.5 on b of b+c.
+    """
+    n = b + c
+    if n == 0:
+        return 1.0
+    from math import comb
+
+    tail = sum(comb(n, k) for k in range(0, min(b, c) + 1))
+    return min(1.0, 2 * tail / (2 ** n))
+
+
+def holm(pvalues: dict[str, float]) -> dict[str, float]:
+    """Holm-Bonferroni adjusted p-values.
+
+    Eleven segments are tested at once. Testing eleven things and reporting the
+    smallest p as though one thing had been tested is how a table like this
+    manufactures a finding, so the correction is applied and shown rather than
+    left to the reader.
+    """
+    ordered = sorted(pvalues.items(), key=lambda kv: kv[1])
+    m = len(ordered)
+    adjusted: dict[str, float] = {}
+    running = 0.0
+    for i, (name, p) in enumerate(ordered):
+        running = max(running, min(1.0, (m - i) * p))
+        adjusted[name] = running
+    return adjusted
+
+
 def wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
     """95% interval. A segment of four tickets cannot support an inference."""
     if total == 0:
@@ -105,9 +145,35 @@ def system_rates(
     return {k: (sum(v), len(v)) for k, v in buckets.items()}
 
 
+def discordant(
+    tickets: list[dict], outcomes: dict[str, str], field: str
+) -> dict[str, tuple[int, int]]:
+    """Per segment: (label said answer & system escalated, and the reverse).
+
+    These are the only tickets that carry information about the difference
+    between the two rates, because both are measured on the same tickets.
+    """
+    pairs: dict[str, list[tuple[bool, bool]]] = defaultdict(list)
+    for ticket in tickets:
+        state = outcomes.get(ticket.get("ticket_id"))
+        labels = ticket.get("labels") or {}
+        if state is None or not labels:
+            continue
+        pairs[segment_value(ticket, field)].append(
+            (labels.get("expected_route") == "auto_respond", state == "auto_responded")
+        )
+    return {
+        name: (
+            sum(1 for lab, sys_ in v if lab and not sys_),
+            sum(1 for lab, sys_ in v if sys_ and not lab),
+        )
+        for name, v in pairs.items()
+    }
+
+
 def report_field(
     tickets: list[dict], outcomes: dict[str, str] | None, field: str
-) -> list[float]:
+) -> tuple[list[float], dict[str, tuple[float, int, int, int]]]:
     """One segment field. A delta is the system's rate minus that segment's baseline.
 
     Both rates are computed over the SAME tickets. If a run covered only part of
@@ -120,40 +186,57 @@ def report_field(
     )
     base = baselines(covered, field)
     system = system_rates(covered, outcomes, field) if outcomes else {}
+    pairs = discordant(covered, outcomes, field) if outcomes else {}
 
     print(f"\n{field}")
     header = f"  {'segment':<18} {'n':>5} {'label baseline':>16}"
     if outcomes:
-        header += f" {'system':>10} {'delta':>8}"
+        header += f" {'system':>10} {'delta':>8} {'disc':>8} {'p':>7}"
     print(header)
     print("  " + "-" * (len(header) - 2))
 
     deltas: list[float] = []
+    stats: dict[str, tuple[float, int, int, int]] = {}
     for name in sorted(base):
         hits, total = base[name]
         rate = hits / total if total else 0.0
-        lo, hi = wilson(hits, total)
         line = f"  {name:<18} {total:>5} {rate:>15.1%}"
         if outcomes and name in system:
             s_hits, s_total = system[name]
             s_rate = s_hits / s_total if s_total else 0.0
             delta = (s_rate - rate) * 100
-            deltas.append(delta)
+            b, c = pairs.get(name, (0, 0))
+            p_value = mcnemar_exact(b, c)
+            stats[name] = (delta, total, b, c)
             flag = "  <-- exceeds condition" if abs(delta) > CONDITION_POINTS else ""
-            line += f" {s_rate:>9.1%} {delta:>+7.1f}pt{flag}"
+            line += f" {s_rate:>9.1%} {delta:>+7.1f}pt {b:>3}/{c:<3} {p_value:>7.3f}{flag}"
+            # Only well-powered segments may set the headline verdict. A segment
+            # the tool itself declares too small to support an inference must not
+            # be the number the report leads with — on the 10 Sep run `enterprise`
+            # (n=8) came within 0.6pt of doing exactly that, and one differently
+            # routed ticket moves that segment 12.5 points.
+            if total >= MIN_SEGMENT_N:
+                deltas.append(delta)
+            # The interval belongs to whatever rate the row is about. Printing the
+            # BASELINE's interval next to a SYSTEM rate invited the report to
+            # quote it as the system's, which it did.
+            lo, hi = wilson(s_hits, s_total)
+        else:
+            lo, hi = wilson(hits, total)
         # The small-sample caveat applies to a delta at least as much as to a
         # baseline: an 8-ticket segment moves 12.5 points per ticket. It used to
         # print only when there were NO outcomes, so exactly the rows most likely
         # to be quoted were the ones that carried no warning.
         if total < MIN_SEGMENT_N:
-            line += f"   [{lo:.0%},{hi:.0%}] n<{MIN_SEGMENT_N}, too few to infer"
+            label = "system rate" if outcomes and name in system else "baseline"
+            line += f"   {label} [{lo:.0%},{hi:.0%}] n<{MIN_SEGMENT_N}, excluded"
         print(line)
 
     if base:
         rates = [h / t for h, t in base.values() if t]
         spread = (max(rates) - min(rates)) * 100
         print(f"  label baseline spread: {spread:.1f}pt")
-    return deltas
+    return deltas, stats
 
 
 def git_commit() -> str:
@@ -306,14 +389,44 @@ def main() -> int:
         "see the spreads below."
     )
 
+    print(
+        "\n`disc` is the discordant split: tickets the label says answer and the\n"
+        "system escalated, against the reverse. Only those carry information about\n"
+        "the difference, because both rates are measured on the same tickets — so\n"
+        "`p` is a two-sided exact paired test, not a comparison of two proportions."
+    )
+
     all_deltas: list[float] = []
+    all_stats: dict[str, tuple[float, int, int, int]] = {}
     for field in (*SEGMENTS, "ticket_length"):
-        all_deltas += report_field(tickets, outcomes, field)
+        deltas, stats = report_field(tickets, outcomes, field)
+        all_deltas += deltas
+        all_stats.update(stats)
+
+    if outcomes and all_stats:
+        raw = {n: mcnemar_exact(b, c) for n, (_, _, b, c) in all_stats.items()}
+        adjusted = holm(raw)
+        print(f"\n{'-' * 78}")
+        print(
+            f"Holm-adjusted across {len(raw)} segments tested together — testing"
+            " eleven things\nand quoting the smallest p is how a table like this"
+            " manufactures a finding:"
+        )
+        survivors = [n for n, p in adjusted.items() if p < 0.05]
+        for name, p_adj in sorted(adjusted.items(), key=lambda kv: kv[1])[:4]:
+            print(f"  {name:<18} raw p={raw[name]:.3f}   adjusted p={p_adj:.3f}")
+        print(
+            f"  surviving correction at 0.05: "
+            f"{', '.join(survivors) if survivors else 'NONE'}"
+        )
 
     print(f"\n{'=' * 78}")
     if outcomes:
         worst = max(all_deltas, key=abs) if all_deltas else 0.0
-        print(f"largest deviation from the label baseline: {worst:+.1f}pt")
+        print(
+            f"largest deviation from the label baseline: {worst:+.1f}pt"
+            f"   (over segments with n>={MIN_SEGMENT_N} only)"
+        )
         if overridden:
             print("NO VERDICT — the run was degraded. See the banner above.")
         else:
@@ -321,6 +434,12 @@ def main() -> int:
             print(
                 "VERDICT:",
                 "HOLDS" if abs(worst) <= CONDITION_POINTS else "EXCEEDED — investigate",
+            )
+            print(
+                "\nThe verdict is on the CONDITION, which is stated in percentage\n"
+                "points and is met or not met as measured. It is not a claim that any\n"
+                "individual segment's gap is distinguishable from chance — see the\n"
+                "adjusted p-values above before treating one segment as a finding."
             )
     else:
         print("Label baselines only. Re-run with --outcomes after a healthy harness")

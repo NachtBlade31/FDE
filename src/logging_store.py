@@ -29,6 +29,7 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
+    func,
     insert,
     select,
 )
@@ -172,6 +173,21 @@ class DecisionLog:
         stmt = select(decisions).where(decisions.c.ticket_id == ticket_id)
         with self._engine.connect() as conn:
             return [self._to_record(row) for row in conn.execute(stmt)]
+
+    def record_count(self, run_id: str | None = None) -> int:
+        """How many decisions one run wrote.
+
+        The log is persistent and accumulates across runs by design (D-41), so a
+        count that is not scoped to a run answers a different question than the
+        one anybody asks of it. The 10 September report said 934 decisions when
+        the run wrote 334; the rest belonged to two earlier runs over the same
+        ticket ids.
+        """
+        stmt = select(func.count()).select_from(decisions)
+        if run_id is not None:
+            stmt = stmt.where(decisions.c.run_id == run_id)
+        with self._engine.connect() as conn:
+            return int(conn.execute(stmt).scalar_one())
 
     def _terminal_state_for(
         self, ticket_id: str, run_id: str = ""

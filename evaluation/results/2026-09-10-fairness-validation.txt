@@ -1,16 +1,16 @@
 ==============================================================================
 PROVENANCE — what this artifact was produced from
 ==============================================================================
-  generated            : 2026-09-10T18:30:58
-  commit               : f3fc6af
+  generated            : 2026-09-10T20:11:00
+  commit               : 79dd421
   tickets              : ..\FDE_Capstone_Complete-20260821T084330Z-1-001\FDE_Capstone_Complete\Capstone_Pack\05_Datasets\validation_tickets.json
-  outcomes             : evaluation\results\2026-09-10-gate-run\outcomes.json
-  run_id               : 20260910T124603-e5dc08
-  run generated_at     : 2026-09-10T12:46:12+00:00
+  outcomes             : evaluation\results\2026-09-10-gate-run-2\outcomes.json
+  run_id               : 20260910T142951-97d609
+  run generated_at     : 2026-09-10T14:29:56+00:00
   provider / model     : groq / openai/gpt-oss-20b
   degraded             : False
   cache replay         : False
-  provider calls       : 116 of 118 succeeded, 11 cache hits
+  provider calls       : 117 of 121 succeeded, 12 cache hits
   fallback rate        : 0.0%
   condition            : within 5 points of baseline
 ==============================================================================
@@ -26,39 +26,58 @@ per segment, over the same tickets. Comparing system output against an
 assumed-flat baseline would report the labels' own variation as bias —
 see the spreads below.
 
+`disc` is the discordant split: tickets the label says answer and the
+system escalated, against the reverse. Only those carry information about
+the difference, because both rates are measured on the same tickets — so
+`p` is a two-sided exact paired test, not a comparison of two proportions.
+
 customer_tier
-  segment                n   label baseline     system    delta
-  -------------------------------------------------------------
-  business              30           70.0%     70.0%    +0.0pt
-  enterprise             8           75.0%     37.5%   -37.5pt  <-- exceeds condition   [41%,93%] n<10, too few to infer
-  standard              42           50.0%     45.2%    -4.8pt
+  segment                n   label baseline     system    delta     disc       p
+  ------------------------------------------------------------------------------
+  business              30           70.0%     73.3%    +3.3pt   5/6     1.000
+  enterprise             8           75.0%     50.0%   -25.0pt   2/0     0.500  <-- exceeds condition   system rate [22%,78%] n<10, excluded
+  standard              42           50.0%     45.2%    -4.8pt   9/7     0.804
   label baseline spread: 25.0pt
 
 language_fluency
-  segment                n   label baseline     system    delta
-  -------------------------------------------------------------
-  fluent                61           65.6%     55.7%    -9.8pt  <-- exceeds condition
-  non_fluent            19           42.1%     47.4%    +5.3pt  <-- exceeds condition
+  segment                n   label baseline     system    delta     disc       p
+  ------------------------------------------------------------------------------
+  fluent                61           65.6%     59.0%    -6.6pt  12/8     0.503  <-- exceeds condition
+  non_fluent            19           42.1%     47.4%    +5.3pt   4/5     1.000  <-- exceeds condition
   label baseline spread: 23.5pt
 
 customer_region
-  segment                n   label baseline     system    delta
-  -------------------------------------------------------------
-  asia_pacific          21           71.4%     33.3%   -38.1pt  <-- exceeds condition
-  europe                25           64.0%     76.0%   +12.0pt  <-- exceeds condition
-  latin_america          7           42.9%     14.3%   -28.6pt  <-- exceeds condition   [16%,75%] n<10, too few to infer
-  north_america         27           51.9%     59.3%    +7.4pt  <-- exceeds condition
+  segment                n   label baseline     system    delta     disc       p
+  ------------------------------------------------------------------------------
+  asia_pacific          21           71.4%     33.3%   -38.1pt  10/2     0.039  <-- exceeds condition
+  europe                25           64.0%     76.0%   +12.0pt   2/5     0.453  <-- exceeds condition
+  latin_america          7           42.9%     14.3%   -28.6pt   2/0     0.500  <-- exceeds condition   system rate [3%,51%] n<10, excluded
+  north_america         27           51.9%     66.7%   +14.8pt   2/6     0.289  <-- exceeds condition
   label baseline spread: 28.6pt
 
 ticket_length
-  segment                n   label baseline     system    delta
-  -------------------------------------------------------------
-  long                  36           52.8%     58.3%    +5.6pt  <-- exceeds condition
-  short                 44           65.9%     50.0%   -15.9pt  <-- exceeds condition
+  segment                n   label baseline     system    delta     disc       p
+  ------------------------------------------------------------------------------
+  long                  36           52.8%     58.3%    +5.6pt   8/10    0.815  <-- exceeds condition
+  short                 44           65.9%     54.5%   -11.4pt   8/3     0.227  <-- exceeds condition
   label baseline spread: 13.1pt
 
+------------------------------------------------------------------------------
+Holm-adjusted across 11 segments tested together — testing eleven things
+and quoting the smallest p is how a table like this manufactures a finding:
+  asia_pacific       raw p=0.039   adjusted p=0.424
+  short              raw p=0.227   adjusted p=1.000
+  north_america      raw p=0.289   adjusted p=1.000
+  europe             raw p=0.453   adjusted p=1.000
+  surviving correction at 0.05: NONE
+
 ==============================================================================
-largest deviation from the label baseline: -38.1pt
+largest deviation from the label baseline: -38.1pt   (over segments with n>=10 only)
 governance condition: within 5 points
 VERDICT: EXCEEDED — investigate
+
+The verdict is on the CONDITION, which is stated in percentage
+points and is met or not met as measured. It is not a claim that any
+individual segment's gap is distinguishable from chance — see the
+adjusted p-values above before treating one segment as a finding.
 ==============================================================================

@@ -129,7 +129,7 @@ This is the single documented test command (A12). It needs no API key — model
 interactions in tests use recorded fixtures — so it passes on a clean checkout
 before you have obtained credentials.
 
-> **It takes about 30 minutes** (429 tests). Most of that is the retrieval and
+> **It takes about 15 minutes** (453 tests). Most of that is the retrieval and
 > pipeline tests, which build a real embedding index rather than mocking one.
 > It has not hung. For a faster signal while working, `pytest tests/test_route.py
 > tests/test_guardrails.py tests/test_token_budget.py` covers the governance
@@ -175,16 +175,18 @@ tokens per day** that appears only in the body of a 429, never in a response
 header. **The reset is 00:00 UTC**, not local midnight — three runs were lost on
 one day because two of them, hours apart, were spending the same allowance.
 
-Measured cost: **~646 tokens per provider call** (47,774 tokens over 74 calls in
-`evaluation/results/2026-09-08-gate-run-cold/metrics.json`). A fully processed
-ticket costs one classification plus, when it auto-responds, one generation —
-so **1 + the first-contact-resolution rate** calls per ticket, which at the
-shipped configuration's 64% is 1.64.
+Measured cost: **~652 tokens per provider call**, from the two healthy cold runs
+of 10 September (`evaluation/results/2026-09-10-gate-run-1/` and `-2/`: 648.2 and
+651.5 per call). A fully processed ticket costs one classification plus, for every
+ticket that produces a draft, one generation — so **1 + the first-contact-resolution
+rate** calls per ticket, which at the shipped configuration's 64% is 1.64. Run 2
+measured 1.61.
 
-A 120-ticket run is therefore about **127,000 tokens — roughly two thirds of the
-daily cap**. Both inputs are floors: calls that error are billed but not counted,
-and generation calls are larger than classification ones. **Two full runs will not
-fit in one UTC day**, and one run plus a few false starts may not either.
+A 120-ticket run is therefore about **128,000 tokens — roughly two thirds of the
+daily cap**. Both inputs are floors, and rounded the pessimistic way on purpose:
+a call that errors is billed but not counted, and generation calls are larger than
+classification ones. **Two full runs will not fit in one UTC day**, and one run
+plus a few false starts may not either.
 
 Check before a graded run:
 

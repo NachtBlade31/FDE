@@ -422,9 +422,7 @@ def run(
     report = build_report(outcomes, run_meta)
     report["governance"]["decision_log_reconciles"] = reconciles
     report["governance"]["decision_log_reconcile_error"] = reconcile_error
-    report["governance"]["decisions_logged"] = len(
-        [r for t in {o.ticket_id for o in outcomes} for r in log.records_for(t)]
-    )
+    report["governance"]["decisions_logged"] = log.record_count(run_id)
     report["governance"]["tickets_in_log"] = len(log.logged_ticket_ids(run_id))
 
     # Record what this run cost against the undocumented daily cap. Nothing

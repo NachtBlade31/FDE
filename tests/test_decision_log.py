@@ -390,3 +390,27 @@ def test_a_second_terminal_state_within_one_run_is_still_rejected(log):
     with pytest.raises(DuplicateTerminalStateError):
         log.write(_record("DEV-0001", Stage.VALIDATION,
                           terminal_state=TerminalState.ESCALATED_DIRECT, run_id="run-a"))
+
+
+def test_the_record_count_is_scoped_to_one_run(tmp_path):
+    """The log is persistent and accumulates across runs by design (D-41), so an
+    unscoped count answers a different question than the one asked of it. The
+    10 September report said 934 decisions when the run wrote 334; the rest
+    belonged to two earlier runs over the same ticket ids."""
+    log = DecisionLog(f"sqlite:///{tmp_path / 'd.db'}")
+
+    for run in ("run-a", "run-b"):
+        for i in range(3):
+            log.write(
+                DecisionRecord(
+                    ticket_id=f"T-{i}",
+                    stage=Stage.CLASSIFICATION,
+                    action_taken="classified",
+                    reason="x",
+                    run_id=run,
+                )
+            )
+
+    assert log.record_count("run-a") == 3
+    assert log.record_count("run-b") == 3
+    assert log.record_count() == 6, "unscoped still answers the whole-log question"

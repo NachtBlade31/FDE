@@ -320,14 +320,29 @@ class Pipeline:
         state.stages.append("validate")
         answer = state.answer
 
-        if not answer.is_answerable:
-            # Routing said this could be answered; generation could not produce a
-            # grounded draft. That is an escalation, not a silent gap.
+        # There are two ways generation can fail to yield a sendable answer, and
+        # they are different events that were being reported as the same one.
+        #
+        #   no text at all      — the provider returned nothing. No draft exists,
+        #                         so nothing was withheld. That is a failure, and
+        #                         counting it as a guardrail block would let a
+        #                         provider outage inflate the block count.
+        #   text, no citations  — a draft WAS produced and must not be sent. That
+        #                         is exactly `Validator._grounding`'s first
+        #                         condition, and it is a block.
+        #
+        # Both used to short-circuit here to ESCALATED_DIRECT with an empty
+        # `blocked_by`, which made the grounding branch unreachable from the
+        # pipeline: it fires only when `citations` is empty, while reaching the
+        # validator required `is_answerable`, which requires citations. On the 10
+        # September gate run that reported `blocked_by_guardrails: 0` where four
+        # drafts had been generated and withheld (D-47).
+        if not answer.text.strip():
             record = DecisionRecord(
                 ticket_id=state.ticket.ticket_id,
                 stage=Stage.VALIDATION,
                 action_taken="escalate",
-                reason=f"No sendable draft was produced: {answer.reason}",
+                reason=f"No draft was produced at all: {answer.reason}",
                 terminal_state=TerminalState.ESCALATED_DIRECT,
                 requirement_ids=["FR-13"],
             )

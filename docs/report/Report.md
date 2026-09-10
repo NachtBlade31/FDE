@@ -34,31 +34,41 @@ finds the existing answer, sends it only when four independent conditions agree,
 and otherwise hands the ticket to a person with the relevant article attached and
 an honest statement of what it was uncertain about.
 
-**What it achieved**, on the 80-ticket validation set, in a single unattended run
-that completed without degrading — `evaluation/results/2026-09-10-gate-run/`,
-0% classification fallback, no cache replay, 116 of 118 provider calls succeeded.
-Every row is reproducible from that artifact.
+**What it achieved**, on the 80-ticket validation set, unattended, no degradation.
+**Two independent cold runs** were made — `evaluation/results/2026-09-10-gate-run-1/`
+and `-2/` — and both are committed, because on one measure they disagree about
+whether a target is met. Headline figures are run 2, the later and the one with
+correct guardrail accounting; run 1 is shown beside them as the honest measure of
+run-to-run variance.
 
-| | Target | Achieved | |
-|---|---|---|---|
-| **Deny-listed tickets auto-answered** | **0** | **0** | ✅ |
-| Citation resolution | 100% | **100%** | ✅ |
-| Classification accuracy | ≥ 85% | **87.5%** | ✅ |
-| Decision log reconciliation | exact | **passes**, 80/80 | ✅ |
-| Retrieval hit rate @3 | — | 94.3% | — |
-| First contact resolution | ≥ 60% | 53.8% | ❌ |
-| Escalation rate | ≤ 30% | 46.3% | ❌ *unreachable — see below* |
-| Processing latency p95 | < 3s | 3.08s net of provider waiting (11.32s raw) | ❌ *by 0.08s* |
-| Fairness: deviation from label baseline | within 5pt | −38.1pt (`asia_pacific`) | ❌ |
+| | Target | Run 2 | Run 1 | |
+|---|---|---|---|---|
+| **Deny-listed tickets auto-answered** | **0** | **0** | **0** | ✅ |
+| Citation resolution | 100% | **100%** | **100%** | ✅ |
+| Decision log reconciliation | exact | **passes** 80/80 | **passes** 80/80 | ✅ |
+| Classification accuracy | ≥ 85% | **85.0%** | **87.5%** | ✅ *both* |
+| Retrieval hit rate @3 | — | 94.3% | 94.3% | — |
+| Processing latency p95 (net) | < 3s | **2.66s** | 3.08s | ⚠️ *straddles* |
+| First contact resolution | ≥ 60% | 56.3% | 53.8% | ❌ |
+| Escalation rate | ≤ 30% | 43.8% | 46.3% | ❌ *unreachable — below* |
+| Fairness deviation | within 5pt | −38.1pt | −38.1pt | ❌ |
 
-**Four targets missed, and none of them quietly.** The escalation target is
-unreachable by construction (below). First-contact resolution of 53.8% sits 6.25
-points under validation's own label ceiling of 60.0% — so the gap is real but
-smaller than the target implies. The latency target is missed by 0.08 seconds at
-p95 once the free tier's rate-limit waiting is excluded; including it the figure
-is 11.32s, and 67% of measured per-ticket time was the client asleep. The
-fairness condition is exceeded and is the most substantive finding in this
-report — §8.3.
+**The latency target sits inside the run-to-run variance, and I am not going to
+report only the run that passes it.** Net of the free tier's rate-limit waiting
+the p95 is 2.66s in run 2 and 3.08s in run 1 — the 3-second target falls between
+them. The honest statement is that this system is *at* its latency budget, not
+comfortably inside it. Raw p95, including the waiting, is 10.5s; 73% of measured
+per-ticket time was the client asleep waiting for tokens it had not been given.
+
+**Three targets missed.** Escalation is unreachable by construction and was known
+to be on day zero. First-contact resolution of 56.3% sits **3.75 points** under
+validation's own label ceiling of 60.0% — a real gap, and much smaller than the
+comparison against 60% suggests. The fairness condition is exceeded, and §8.3 is
+careful about what that does and does not establish.
+
+**Classification accuracy clears its target in both runs**, at 85.0% and 87.5% —
+but run 2 clears it by 0.0 points, which is not a margin. Treat the target as met
+and the headroom as absent.
 
 **The single most important caveat.** The escalation target of ≤30% is
 unreachable without a governance breach, and this was established from the labels
@@ -255,7 +265,7 @@ feature.
 
 ## 6. Implementation
 
-369 tests, 91% branch coverage, one command (`pytest`), green on a clean checkout
+453 tests, 95% branch coverage, one command (`pytest`), green on a clean checkout
 without an API key.
 
 **What was difficult** — in each case the defect was invisible until the whole
@@ -302,55 +312,81 @@ produced under.
 
 ### 7.2 Results
 
-*Table 1 — validation set, 80 tickets, single unattended run.
-Source: `evaluation/results/2026-09-10-gate-run/`. The run did not degrade:
-`degraded: false`, `classification_fallback_rate: 0.0`, `cache_replay: false`,
-116 of 118 provider calls succeeded, 75,190 tokens.*
+*Table 1 — validation set, 80 tickets. Two independent cold runs, both committed:
+`evaluation/results/2026-09-10-gate-run-2/` (headline) and `-1/`. Neither
+degraded: `degraded: false`, `classification_fallback_rate: 0.0`,
+`cache_replay: false`, no quota exhaustion.*
 
-| Measure | Baseline | Target | Achieved | |
+| Measure | Baseline | Target | Run 2 | Run 1 |
 |---|---|---|---|---|
-| First contact resolution | 43.8% | ≥60% | 53.8% | ❌ — 6.25pt under the label ceiling of 60.0% |
-| Escalation rate | 56.2% | ≤30% | 46.3% | ❌ — unreachable, §7.4 |
-| Classification accuracy | — | ≥85% | **87.5%** | ✅ |
-| Retrieval hit rate @3 | — | — | 94.3% | 53 eligible tickets |
-| Citation resolution | — | 100% | **100%** | ✅ 43 answers, re-resolved |
-| Processing latency p95 | 8–12 hrs | <3s | 3.08s net / 11.32s raw | ❌ by 0.08s |
-| Deny-list violations | — | 0 | **0** | ✅ condition, not target |
-| Decision log reconciliation | — | exact | **passes** | ✅ 80 of 80 |
-| Fairness deviation | — | within 5pt | −38.1pt | ❌ §8.3 |
+| First contact resolution | 43.8% | ≥60% | 56.3% ❌ | 53.8% ❌ |
+| Escalation rate | 56.2% | ≤30% | 43.8% ❌ | 46.3% ❌ |
+| Classification accuracy | — | ≥85% | **85.0%** ✅ | **87.5%** ✅ |
+| Retrieval hit rate @3 | — | — | 94.3% | 94.3% |
+| Citation resolution | — | 100% | **100%** ✅ | **100%** ✅ |
+| Processing latency p95, net | 8–12 hrs | <3s | **2.66s** ✅ | 3.08s ❌ |
+| Processing latency p95, raw | — | — | 10.51s | 11.32s |
+| Deny-list violations | — | 0 | **0** ✅ | **0** ✅ |
+| Decision log reconciliation | — | exact | **80/80** ✅ | **80/80** ✅ |
+| Fairness deviation | — | within 5pt | −38.1pt ❌ | −38.1pt ❌ |
 
-**On latency, and why two figures.** 67% of measured per-ticket time (317.3s of
-473s) was the client asleep waiting for the free tier's token allowance, which is
-a property of an unpaid deployment rather than of the system. Net of that wait the
-mean is **1.94s** and the p95 is **3.08s**. So the target is missed by 0.08
-seconds, and I am reporting the miss rather than the mean: p95 is what the target
-names. Both figures come from the harness, which records provider wait per ticket
-— this is not a subtraction done by hand.
+*Run 2 volume: 80 processed, 45 auto-answered, 35 escalated — of which **4 were
+blocked by a guardrail** and 31 escalated before a draft existed.*
 
-**What this run cost.** 75,190 tokens, 648.2 per provider call against the 646
-the preflight predicts, and 1.48 calls per ticket against a predicted 1.64. The
-estimate is 13% pessimistic, which is the direction it is designed to err in
-(D-45).
+**Why two runs.** The first was made before a defect in guardrail accounting was
+found (§8.2, D-47), so its `blocked_by_guardrails` count is wrong — it reported 0
+where the true figure is 4. Its *rates* are unaffected by that defect, so rather
+than discard it I kept it as a second observation. That turned out to matter: the
+two runs disagree about the latency target.
 
-**Three earlier attempts were lost** to the daily token cap on 8 September, and an
-earlier validation run that produced 48.8% FCR / 51.2% escalation / 82.5% accuracy
-wrote to a generic output directory a later run overwrote. Those figures appeared
-in earlier drafts of this table; no committed artifact supports them, so they are
-withdrawn rather than restated. Every figure above comes from the 10 September
-run, which is committed in full.
+**On latency, and why two figures per run.** Most of the measured per-ticket time
+was the client asleep waiting for the free tier's token allowance — 330.1s of
+450.6s (73.3%) in run 2, and 317.3s of 472.9s (67.1%) in run 1 — a property of an unpaid deployment, not of
+the system. Both figures are reported because neither alone is honest: the raw
+one describes what a user on this tier experiences, the net one describes the
+system. **Net of waiting, p95 is 2.66s in run 2 and 3.08s in run 1**, so the
+3-second target lies inside the run-to-run band. I report the target as met in
+run 2 and missed in run 1 rather than picking one.
+
+**Run-to-run variance, measured rather than asserted.** Across the two runs: FCR
+53.8–56.3%, accuracy 85.0–87.5%, net p95 2.66–3.08s, auto-answered 43–45 of 80.
+That is a ±1.25 point band on FCR and ±1.25 on accuracy, consistent with the
+±1.5 points established on development in D-28. **No single-run difference
+smaller than about 2.5 points should be read as a result**, which is the standard
+this report tries to hold itself to elsewhere.
+
+**What a run costs.** Run 2 needed 129 completions for 80 tickets — 80
+classifications plus 49 generations (45 sent, 4 blocked) — at 651.5 tokens per
+provider call, 76,224 tokens with 12 served from cache. Cold-equivalent that is
+about 84,000 tokens, against the preflight's estimate of 84,755 for 80 tickets:
+**0.8% pessimistic**, which is the direction it is designed to err in but a much
+narrower margin than it looks. The 12 cache hits are within-run duplicates — the
+validation split contains repeated ticket bodies — and are disclosed here because
+an undisclosed cache hit is how a throughput claim went wrong once already (D-30).
 
 ### 7.3 Calibration — a failed condition, reported as one
 
 The governance condition is stated confidence within five points of observed
-accuracy. Across four cold runs of 100 tickets:
+accuracy. Four cold runs of 100 tickets were made during development:
 
-| Run | Accuracy | ECE | Within 5 points? |
-|---|---|---|---|
-| 1–4 | 89 / 86 / 87 / 90% | 3.2 / 6.0 / 5.2 / 2.5% | **2 pass, 2 fail** |
+| Run | Accuracy | ECE | Within 5 points? | Artifact |
+|---|---|---|---|---|
+| 4 | **90.0%** | **2.6%** | yes | `2026-09-07-classifier-100-cold.txt` |
+| 1–3 | 89 / 86 / 87% | 3.2 / 6.0 / 5.2% | 2 of 3 | **not committed** |
 
-**Two of four runs fail.** The cause is specific: the model is systematically
-overconfident by roughly four points in the 0.80–1.00 band, where 99 of 100
-predictions land.
+**Only the last run has a committed artifact**, and its figures are 90.0% / 2.6%
+— not the 2.5% an earlier draft of this table reported for it. Runs 1–3 were made
+before the evaluation scripts wrote provenance-stamped output files (D-37), so
+their numbers survive only as notes and **cannot be checked**. They are shown
+because the pattern across them is what drove a design decision, and suppressed
+figures would misrepresent how that decision was reached — but a reader should
+weight them accordingly, and the honest summary is: **one verifiable run passes;
+the condition failed in at least one unverifiable run.**
+
+The cause is specific and is visible in the committed artifact: the model is
+overconfident in the 0.80–1.00 band, where 99 of 100 predictions land, so ECE is
+dominated by a single bin and moves several points between runs on a handful of
+tickets.
 
 This failure is also the justification for the architecture. Confidence fails
 calibration, which is precisely why routing thresholds on *margin* rather than
@@ -375,7 +411,14 @@ guardrail routes to block *and* escalate, because a blocked response still leave
 a customer without an answer and a human who must write one. Hitting 30% under
 the three-outcome reading would require **at least 24 of 120 hidden tickets to
 end with no answer and no human assigned**. Blocked counts are reported
-separately regardless, so a reader can recompute under either taxonomy.
+separately regardless, so a reader can recompute under either taxonomy: run 2 is
+**45 answered / 31 escalated / 4 blocked**.
+
+That promise was not kept until 10 September. The reporter printed
+`blocked_by_guardrails: 0` for a run in which four drafts were generated and
+withheld, because an ungrounded draft short-circuited past the validator entirely
+— so the grounding guardrail had a branch no production path could reach, and its
+activation count was structurally zero rather than observed to be zero. D-47.
 
 ### 7.5 The limits of what was measured
 
@@ -425,7 +468,18 @@ all**, so grounding protects them regardless of the classifier. Residual exposur
 is confined to `security_incident` and `compliance_request` and is estimated at
 ~1 ticket in 120.
 
-**Measured: zero deny-listed tickets auto-answered, at every threshold tested.**
+**Measured: zero deny-listed tickets auto-answered, at every threshold tested,
+across every run including the degraded ones.**
+
+**One guardrail was, however, structurally unable to fire.** The grounding check
+withholds a draft whose citations do not resolve. The pipeline short-circuited
+such drafts before the validator ran, so that branch was unreachable and the
+report said zero blocks where four had occurred (D-47). The deny-list and
+tone-and-scope guardrails were unaffected and the deny-list condition held
+throughout — but the episode is worth stating plainly here rather than only in the
+decision log, because **"this control never needed to fire" and "this control
+could not fire" produce the same number**, and only one of them is good news.
+Corrected, the run blocks 4 of 80.
 
 ### 8.3 Fairness
 
@@ -446,75 +500,62 @@ outcomes were supplied, so it was suppressed on exactly the delta rows most
 likely to be quoted (`enterprise`, n=8; `latin_america`, n=7). It is now
 unconditional.
 
-**The result, and it fails the condition.**
-`evaluation/results/2026-09-10-fairness-validation.txt`:
+**The result: the condition is exceeded, and no single segment survives testing.**
+`evaluation/results/2026-09-10-fairness-validation.txt` (run 2):
 
-| Segment | n | Label baseline | System | Delta |
-|---|---|---|---|---|
-| `asia_pacific` | 21 | 71.4% | 33.3% | **−38.1pt** |
-| `latin_america` | 7 | 42.9% | 14.3% | −28.6pt *(n<10, cannot support inference)* |
-| `enterprise` | 8 | 75.0% | 37.5% | −37.5pt *(n<10, cannot support inference)* |
-| `short` tickets | 44 | 65.9% | 50.0% | −15.9pt |
-| `fluent` | 61 | 65.6% | 55.7% | −9.8pt |
-| `standard` | 42 | 50.0% | 45.2% | −4.8pt ✅ |
-| `business` | 30 | 70.0% | 70.0% | **+0.0pt** ✅ |
-| `non_fluent` | 19 | 42.1% | 47.4% | +5.3pt |
-| `long` tickets | 36 | 52.8% | 58.3% | +5.6pt |
-| `north_america` | 27 | 51.9% | 59.3% | +7.4pt |
-| `europe` | 25 | 64.0% | 76.0% | +12.0pt |
+| Segment | n | Baseline | System | Delta | Discordant | p | Holm |
+|---|---|---|---|---|---|---|---|
+| `asia_pacific` | 21 | 71.4% | 33.3% | **−38.1pt** | 10 / 2 | 0.039 | 0.424 |
+| `north_america` | 27 | 51.9% | 66.7% | +14.8pt | 2 / 6 | 0.289 | 1.000 |
+| `europe` | 25 | 64.0% | 76.0% | +12.0pt | 2 / 5 | 0.453 | 1.000 |
+| `short` tickets | 44 | 65.9% | 54.5% | −11.4pt | 8 / 3 | 0.227 | 1.000 |
+| `fluent` | 61 | 65.6% | 59.0% | −6.6pt | 12 / 8 | 0.503 | 1.000 |
+| `long` tickets | 36 | 52.8% | 58.3% | +5.6pt | 8 / 10 | 0.815 | 1.000 |
+| `non_fluent` | 19 | 42.1% | 47.4% | +5.3pt | 4 / 5 | 1.000 | 1.000 |
+| `standard` | 42 | 50.0% | 45.2% | −4.8pt ✅ | 9 / 7 | 0.804 | 1.000 |
+| `business` | 30 | 70.0% | 73.3% | +3.3pt ✅ | 5 / 6 | 1.000 | 1.000 |
 
-**Verdict: EXCEEDED.** The largest deviation is −38.1 points, against a condition
-of five. This is reported as a failed condition, in the same way calibration is
-(§7.3), and not softened.
+`enterprise` (n=8) and `latin_america` (n=7) are printed by the tool, flagged, and
+**excluded** from the verdict — a segment it declares too small to support an
+inference must not be the number the report leads with.
 
-**The deltas have mixed signs, and that is the point.** When this audit was
-pointed at a *degraded* run it returned eleven deltas that were all negative,
-which is what an outage looks like — everything escalates, so every segment falls
-together. A genuine measurement looks like this instead: some segments above
-their baseline, some below. The refusal control in `scripts/fairness_audit.py`
-exists precisely so that the first pattern cannot be published as the second
-(D-44), and having now seen both, the shapes are not similar.
+**Verdict: EXCEEDED**, at −38.1 points against a five-point condition. Reported as
+a failed condition, like calibration (§7.3), and not softened.
 
-**The substantive finding is `asia_pacific`.** Its labels say 71.4% of those
-tickets should be answerable — the *highest* of any region on this split — and
-the system answers 33.3%. It is the largest well-powered gap in the table (n=21),
-and it runs opposite to `europe` at +12.0pt. That is a real disparity in service
-quality between two regions, and it is not explained by the labels, because the
-labels are what it is measured against.
+**But be precise about what that does and does not establish.** The condition is
+stated in percentage points, and as measured it is missed. That is not the same
+claim as "this segment is treated unfairly", and the table above is deliberately
+built so the two cannot be confused:
 
-I am not shipping a fix derived from it. The Project Brief forbids tuning against
-validation, and the hidden set is drawn from the same population, so tuning here
-would be both a rule violation and self-defeating. §10.2 carries it as the first
-thing to investigate on development data.
+- The system's decision and the label are made on **the same ticket**, so the two
+  rates are paired. Only the discordant tickets carry information — for
+  `business`, 30 tickets reduce to 5 disagreements each way, which is why
+  **+3.3pt there is not evidence of agreement** any more than it is of bias.
+- `asia_pacific` is the only segment with a raw p below 0.05 (0.039, from a 10/2
+  split). **Eleven segments were tested at once.** After Holm correction it is
+  0.424, and **nothing survives at 0.05.** Quoting the smallest of eleven p-values
+  as a finding is precisely how a table like this manufactures one.
+- So the honest reading of `europe +12.0` and `north_america +14.8` is *not* that
+  those regions are favoured. p = 0.45 and 0.29. They are noise-consistent.
 
-**Sofia's hypothesis is not supported by this run.** She believed non-fluent
-English tickets were handled worse and that nobody had noticed. On this
-measurement `non_fluent` is **+5.3pt** — above its baseline — while `fluent` is
-−9.8pt. Relative to what the labels say each group should receive, non-fluent
-tickets do slightly better. Her concern was worth taking seriously and worth
-measuring; the measurement does not bear it out, and the region gap she did not
-raise is larger than the fluency gap she did.
+**What is nonetheless worth acting on.** The `asia_pacific` gap is **identical in
+both independent cold runs** — −38.1 points, from the same 10/2 discordant split
+each time — while other segments moved by up to 3 points between runs. A
+reproducible effect that fails a correction over eleven comparisons is a **lead**,
+not a result: the right response is to go and measure it properly on development
+data, which §10.2 sets out, and not to publish it as a finding or to tune against
+it. The Project Brief forbids tuning against validation, and the hidden set is
+drawn from the same population.
 
-One caveat that cuts against over-reading any of this: `latin_america` (n=7) and
-`enterprise` (n=8) carry intervals spanning roughly 16–75% and 41–93%. Both are
-flagged in the audit output as too small to support an inference, and neither is
-counted as evidence here.
-
-**The audit refuses to run on a degraded run.** Pointed at a degraded run it
-returned eleven negative deltas — −42.9pt (asia_pacific) to −5.3pt (non_fluent) —
-and the verdict `EXCEEDED — investigate`: a system apparently biased against every
-customer group at once. That run had lost its provider partway, so every ticket
-after that escalated regardless of content, pulling all segments down together.
-The audit was measuring the outage. Uniformly negative numbers are superficially
-plausible, and publishing them would have been the most damaging error in this
-report.
-
-The tool now reads the run's `metrics.json` and declines to produce per-segment
-deltas when the run is marked degraded, printing only the label baselines, which
-need no run and are always valid (D-44). It also refuses when *no* metrics file is
-present, because copying `outcomes.json` into the dated-evidence layout used to
-disable the guard silently. A cache replay is still accepted — replayed outcomes
-are real routing decisions; only degradation invalidates them.
+**Sofia's hypothesis is not refuted; it is undetectable at this sample size.** She
+believed non-fluent English tickets were handled worse. `non_fluent` measures
++5.3pt — nominally better than baseline — but on a 4/5 discordant split, p = 1.00.
+Nineteen tickets cannot answer her question in either direction. An earlier draft
+of this section said the run "contradicted" her, which overstated it: the correct
+statement is that this run **cannot detect** the effect she describes, and that
+saying so is different from saying she was wrong. Her concern is why this audit
+exists, and it deserves the measurement §10.2 proposes rather than a dismissal
+built on nineteen tickets.
 
 ### 8.4 The kill switch
 
@@ -582,16 +623,20 @@ ones.** That is a condition rather than a target, and it held throughout.
    unreachable without a governance breach and pretending otherwise sets up a
    failure that is nobody's fault.
 2. **Investigate the `asia_pacific` gap on development data.** −38.1 points
-   against its label baseline (§8.3), the largest well-powered disparity the
-   audit found, and opposite in sign to `europe`. The first question is whether
+   against its label baseline, reproduced identically in two independent runs but
+   **not surviving correction over eleven segments** (§8.3) — a lead, not a
+   finding, and the reason to go and measure it where there are 500 tickets
+   instead of 21. The first question is whether
    the corpus simply covers that segment's intents less well, which retrieval
    scores per segment would answer, or whether the classifier is less accurate on
    its phrasing. Deliberately not fixed here: the brief forbids tuning against
    validation, and the hidden set comes from the same population.
 3. **Measure the fluency gap on live tickets.** The two supplied splits disagree
    by 23.5 points and invert, and Sofia's hypothesis — that non-fluent tickets are
-   handled worse — is contradicted by the one healthy run (+5.3pt). Neither split
-   can be trusted as a baseline for a question this consequential.
+   handled worse — is neither supported nor refuted by these runs: 19 tickets and
+   a 4/5 discordant split cannot detect it (p = 1.00). Neither split can be
+   trusted as a baseline for a question this consequential, and 19 tickets cannot
+   settle it.
 4. **A continuous human review sample in production.** The residual harm named in
    §8 — a correctly cited but misapplied passage — is invisible to every
    automated control in the system.
@@ -664,6 +709,6 @@ reported. Where a claim could not be verified it is labelled as unverified.
 - **D** — Stage 4 Sprint Plan with estimates against actuals
 - **E** — Stage 5 Revision Log
 - **F** — Governance Framework (risk register, fairness audit, incident procedure)
-- **G** — Decision record: 42 decisions with evidence (`docs/DECISIONS.md`)
+- **G** — Decision record: 47 decisions with evidence (`docs/DECISIONS.md`)
 - **H** — Evaluation artifacts (`evaluation/results/`), each with a provenance banner
 - **I** — Validator charter and six review verdicts (`docs/VALIDATOR.md`)

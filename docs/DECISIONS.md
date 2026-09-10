@@ -1433,11 +1433,11 @@ a run cannot fit:
   recorded spend      : 47,774 of 200,000 tokens
   remaining (local)   : 0
   EXHAUSTED           : a run today was refused with 'quota exhausted'. Wait for 00:00 UTC.
-  a 127,132-token run  : DOES NOT FIT
+  a 128,313-token run  : DOES NOT FIT
   This ledger counts only what this machine recorded. It can rule a run out; it cannot promise one will complete.
 ```
 
-*(Verbatim, from `TokenLedger().view(day='2026-09-08').explain(127132)`. I first
+*(Verbatim, from `TokenLedger().view(day='2026-09-08').explain(128313)`. I first
 printed an abbreviated version of this block here with a 104,490-token estimate —
 120 × 1.35 × 645, the repudiated multiplier this very entry goes on to retract,
 inside a reconstructed transcript, which is the defect D-44 was corrected for in
@@ -1458,11 +1458,20 @@ Two design points matter more than the arithmetic:
    over, that fact is stored and wins over the sum. `test_token_budget.py` pins
    this as its central case.
 
-**The measured cost, at last.** 47,774 tokens across 74 successful calls is ~646
-per call. A fully processed ticket costs one classification plus, when it
-auto-responds, one generation — so **1 + FCR** calls per ticket. At the shipped
-configuration's 64.0% (`2026-09-07-routing-200.txt`, margin 0.85) that is 1.64,
-and **120 tickets ≈ 127,000 tokens, about two thirds of the daily cap**.
+**The measured cost, at last.** A fully processed ticket costs one classification
+plus, for every ticket that produces a draft, one generation — so **1 + FCR**
+calls per ticket, 1.64 at the shipped configuration's 64.0%
+(`2026-09-07-routing-200.txt`, margin 0.85). Per call, the two healthy runs of 10
+September measured 648.2 and 651.5, so the constant is **652** — the more
+expensive of them, rounded up. **120 tickets ≈ 128,000 tokens, about two thirds
+of the daily cap.**
+
+The first version of this used 646, taken from the *degraded* 8 September run.
+By the time a healthy run existed that had become five tokens per call
+**optimistic** — the wrong side for a number feeding a gate — and the test pinned
+it there with an equality against the degraded artifact, so nothing would have
+noticed. The test is now directional ( the maximum across healthy runs) and
+refuses to derive the estimate from a run marked degraded at all.
 
 I first published 1.35 calls per ticket, taken from the cold run's own
 auto-respond rate of 33.75%. That was wrong in an instructive way: 26 of that
@@ -1517,32 +1526,109 @@ baseline. The control was worth building.
 
 **The substantive gap is regional, and it is not one I predicted.** `asia_pacific`
 has the *highest* label baseline of any region on this split (71.4%) and receives
-the *lowest* service (33.3%), while `europe` runs 12 points above its own
-baseline. Two hypotheses are worth separating on development data: the corpus may
-cover that segment's intents less well, which per-segment retrieval scores would
-show; or the classifier may be less accurate on its phrasing, which per-segment
-accuracy would show. Both are measurable without touching validation.
+the *lowest* service (33.3%). Two hypotheses are worth separating on development
+data: the corpus may cover that segment's intents less well, which per-segment
+retrieval scores would show; or the classifier may be less accurate on its
+phrasing, which per-segment accuracy would show. Both are measurable without
+touching validation.
+
+**A correction to how I first wrote this up.** The entry originally called
+`asia_pacific` "well powered (n=21)" and presented `europe +12.0pt` as a
+contrasting signal. The validator asked for a paired test, and it was right to.
+The system's decision and the label are made on the same ticket, so the rates are
+paired and only discordant tickets carry information; `asia_pacific` is 10 vs 2,
+exact p = 0.039, and `europe` is 2 vs 5, p = 0.45. **Eleven segments were tested
+at once, and after Holm correction nothing survives at 0.05** — `asia_pacific`
+adjusts to 0.424. Quoting the smallest of eleven p-values as a finding is how a
+table like this manufactures one, and I had done it.
+
+The audit now computes and prints the discordant split, an exact paired p, and
+the Holm-adjusted p for every segment, and states in its own output that the
+verdict is on the *condition* — which is in percentage points and is missed as
+measured — and not a claim about any individual segment.
+
+**What survives the correction is a lead, and it is a real one.** The
+`asia_pacific` gap is **identical in two independent cold runs**, −38.1 points
+from the same 10/2 split each time, while other segments moved by up to 3 points
+between them. Reproducibility is not significance, but it is a reason to go and
+measure properly where there are 500 tickets rather than 21.
 
 **Not fixed here, deliberately.** The Project Brief forbids tuning against
 validation, and the hidden set is drawn from the same population — so a fix
 derived from this table would be both a rule violation and self-defeating. It is
 carried into report §10.2 as the first thing to investigate.
 
-**And Sofia's hypothesis is not supported.** She believed non-fluent English
-tickets were being handled worse and that nobody had noticed. Measured against
-what the labels say each group should receive, `non_fluent` is +5.3pt and
-`fluent` is −9.8pt. Her concern was worth taking seriously and worth instrumenting
-— the fairness audit exists partly because she raised it — and the answer is that
-the disparity is real but regional, not linguistic. Recording that the stakeholder
-who prompted the measurement was wrong about its direction seems more useful than
-quietly dropping the thread.
+**And Sofia's hypothesis is not refuted — it is undetectable here.** She believed
+non-fluent English tickets were being handled worse. `non_fluent` measures +5.3pt,
+nominally *better* than its baseline, but on a 4 vs 5 discordant split: p = 1.00.
+Nineteen tickets cannot answer her question in either direction.
 
-> **Video line:** "The fairness audit finally ran on a healthy run, and it failed.
-> Asia-Pacific tickets get answered a third of the time where the labels say
-> seventy percent are answerable — while Europe runs twelve points *above* its
-> baseline. And notice the signs go both ways: that is what a real fairness
-> result looks like, as opposed to the all-negative one an outage produced two
-> days earlier."
+I first wrote that the run "contradicted" her. It does not, and the difference
+matters: a stakeholder who raises a fairness concern and is told the data refutes
+it has been given a stronger answer than the data can support. The audit exists
+partly because she raised this, and what it can honestly say is that the effect
+she describes is not detectable at nineteen tickets — which is an argument for
+measuring it on live traffic, not for closing the question.
+
+> **Video line:** "The fairness audit ran on a healthy run and the condition
+> failed — Asia-Pacific tickets get answered a third of the time where the labels
+> say seventy percent are answerable. Then I tested it properly: eleven segments,
+> paired test, Holm correction. Nothing survives. So what I have is a gap that
+> reproduces exactly across two runs and still is not statistically established —
+> which makes it a lead to go and measure, not a headline to publish."
+
+---
+
+## D-47 · Four blocked drafts were reported as zero blocks
+
+**Tag:** `GOVERNANCE` · **Date:** 2026-09-10 · **Status:** Fixed · **Measured**
+
+The 10 September gate run reported `blocked_by_guardrails: 0` and
+`guardrail_activations: {}`. Four drafts had been generated and withheld.
+
+**The mechanism.** `Generator` returns an answer with `is_answerable == False`
+when no citation marker in the draft resolves to a retrieved passage.
+`Pipeline._validate` checked that first and short-circuited to
+`ESCALATED_DIRECT` with an empty `blocked_by`, **without ever calling the
+validator**. But `Validator._grounding`'s first condition is `if not
+answer.citations` — the identical case. So that branch was unreachable from the
+pipeline: it fires only when `citations` is empty, and reaching it required
+`is_answerable`, which requires `citations` non-empty. Mutually exclusive.
+
+Two things were wrong with that, and the second is worse than the first:
+
+1. A draft that was produced and then withheld was counted as a ticket that never
+   got as far as a draft. Those are different events and the Build Specification
+   asks for them separately.
+2. **A governance control was silently doing nothing.** The grounding guardrail
+   had a branch that no production path could reach, so its activation count was
+   structurally zero rather than observed to be zero. `deny_list` and
+   `tone_and_scope` were unaffected, and the deny-list condition held throughout —
+   but "zero activations" and "cannot activate" look identical in a report.
+
+**Why the tests missed it.** `test_a_guardrail_block_produces_escalated_after_block`
+covered `tone_and_scope`, which fires on drafts that *do* carry citations, so it
+exercised the path that worked. The uncovered path was the one where the two
+conditions were mutually exclusive, which no single-guardrail test would show.
+
+**The fix is a deletion.** Every draft now goes to the validator and the validator
+decides. One code path, one place where blocking happens, and the guardrail
+records its own activation. Corrected counts for the re-run: **45 auto-answered,
+35 escalated, of which 4 blocked and 31 escalated before a draft existed** —
+against the 43 / 37 / 0 first published. Four tests now pin it, including one
+that a grounded draft is *not* blocked, since a control that blocks everything
+would also pass the other three.
+
+This is the second defect of its shape in this project. D-32's markers were
+"present but buying nothing"; this was "present but unreachable". Both were found
+by asking what a number would look like if the thing it counts could never
+happen — and both times the answer was: exactly like the number I had.
+
+> **Video line:** "My report said zero drafts were blocked by guardrails. Four
+> were. The grounding check had a branch the pipeline could never reach, so it
+> wasn't returning zero — it was structurally incapable of returning anything
+> else. A control that cannot fire and a control that never needed to fire look
+> the same in a report, and only one of them is good news."
 
 ---
 

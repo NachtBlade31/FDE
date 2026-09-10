@@ -284,13 +284,15 @@ def test_small_segments_carry_the_caveat_even_when_a_delta_is_shown(tmp_path):
     (run_dir / "metrics.json").write_text(json.dumps({"run": HEALTHY}), encoding="utf-8")
 
     out = _run(tmp_path)
-    assert "too few to infer" in out
-    assert "exceeds condition" in out  # the delta is shown...
-    # ...and the row that shows it also carries its interval.
+    assert "excluded" in out
+    assert "exceeds condition" in out  # the delta is still shown...
+    # ...and the row that shows it also carries its interval, and says the
+    # interval is the SYSTEM rate's rather than the baseline's.
     region_line = next(
         line for line in out.splitlines() if "europe" in line and "pt" in line
     )
-    assert "too few to infer" in region_line
+    assert "excluded" in region_line
+    assert "system rate" in region_line
 
 
 # --------------------------------------------------------------------------
@@ -323,3 +325,86 @@ def test_wilson_widens_as_the_sample_shrinks(n):
     assert hi - lo > 0
     wider_lo, wider_hi = audit.wilson(0, 1)
     assert (wider_hi - wider_lo) >= (hi - lo)
+
+
+def test_an_underpowered_segment_cannot_set_the_headline_verdict(tmp_path):
+    """A segment the tool itself calls too small to support an inference must not
+    be the number the report leads with. On the 10 September run `enterprise`
+    (n=8, -37.5pt) came within 0.6 points of being that number, and one
+    differently routed ticket moves an 8-ticket segment 12.5 points."""
+    every = _tickets()[:8]          # 8 europe tickets, below MIN_SEGMENT_N
+    (tmp_path / "tickets.json").write_text(json.dumps(every), encoding="utf-8")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir(exist_ok=True)
+    (run_dir / "outcomes.json").write_text(
+        json.dumps(
+            [{"ticket_id": t["ticket_id"], "terminal_state": "escalated_direct"} for t in every]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "metrics.json").write_text(json.dumps({"run": HEALTHY}), encoding="utf-8")
+
+    out = _run(tmp_path)
+
+    # The row is printed, flagged and excluded; the verdict rests on nothing.
+    assert "exceeds condition" in out
+    assert "excluded" in out
+    assert "largest deviation from the label baseline: +0.0pt" in out
+    assert "n>=10 only" in out
+    assert "VERDICT: HOLDS" in out
+
+
+# --------------------------------------------------------------------------
+# a delta is not a finding until it survives being tested
+# --------------------------------------------------------------------------
+
+
+def test_mcnemar_is_two_sided_and_paired():
+    """Concordant tickets carry no information, so only the discordant split
+    matters — which is why a 30-ticket segment can still be uninformative."""
+    assert audit.mcnemar_exact(0, 0) == 1.0
+    assert audit.mcnemar_exact(6, 6) == 1.0
+    assert audit.mcnemar_exact(5, 5) == 1.0
+    # 10 vs 2 is the asia_pacific split on the 10 Sep run.
+    assert audit.mcnemar_exact(10, 2) == pytest.approx(0.0386, abs=0.001)
+    # Symmetric: direction must not change the evidence.
+    assert audit.mcnemar_exact(2, 10) == audit.mcnemar_exact(10, 2)
+    assert audit.mcnemar_exact(4, 5) == 1.0
+
+
+def test_holm_is_monotone_and_never_reduces_a_p_value():
+    raw = {"a": 0.001, "b": 0.02, "c": 0.30, "d": 0.90}
+    adj = audit.holm(raw)
+
+    assert all(adj[k] >= raw[k] for k in raw)
+    ordered = [adj[k] for k in sorted(raw, key=lambda k: raw[k])]
+    assert ordered == sorted(ordered), "adjusted p must not decrease down the ranking"
+    assert adj["a"] == pytest.approx(0.004)
+
+
+def test_a_lone_significant_segment_does_not_survive_eleven_comparisons():
+    """The 10 September case: asia_pacific raw p=0.039 across 11 segments."""
+    raw = {f"s{i}": 1.0 for i in range(10)}
+    raw["asia_pacific"] = 0.0386
+
+    assert audit.holm(raw)["asia_pacific"] > 0.05
+
+
+def test_the_report_shows_the_discordant_split_and_a_p_value(tmp_path):
+    _write_case(tmp_path, HEALTHY)
+    out = _run(tmp_path)
+
+    assert "disc" in out
+    assert "Holm-adjusted across" in out
+    assert "surviving correction at 0.05" in out
+
+
+def test_the_verdict_says_what_it_is_and_is_not_a_claim_about(tmp_path):
+    """The condition is in percentage points. Meeting or missing it is not the
+    same as showing a segment's gap is distinguishable from chance, and the
+    output must not let those be read as one statement."""
+    _write_case(tmp_path, HEALTHY)
+    out = _run(tmp_path)
+
+    assert "The verdict is on the CONDITION" in out
+    assert "not a claim that any" in out

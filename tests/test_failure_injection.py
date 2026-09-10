@@ -43,7 +43,10 @@ class FailingClient:
 
         self.failure = failure
         self.remaining = fail_first
-        self.reply = reply or _CLASSIFY
+        # `reply or _CLASSIFY` swallowed the empty string, so the test named
+        # "a provider returning an empty string" was in fact handed the normal
+        # classification JSON and passed for the wrong reason.
+        self.reply = _CLASSIFY if reply is None else reply
         self.stats = CallStats()
         self.calls = 0
 

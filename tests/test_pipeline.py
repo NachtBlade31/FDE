@@ -243,3 +243,79 @@ def test_processing_is_deterministic_for_the_same_ticket(build):
     second = pipeline.process(_raw(ticket_id="DEV-B"))
 
     assert first.terminal_state == second.terminal_state
+
+
+# --- a withheld draft is a block, and must be counted as one -----------------
+#
+# An ungrounded draft used to short-circuit past the validator to
+# ESCALATED_DIRECT with an empty `blocked_by`. Two things were wrong with that:
+# the grounding guardrail's own first condition (`not answer.citations`) became
+# unreachable from the pipeline, and a draft that was produced and then withheld
+# was counted as a ticket that never got as far as a draft. On the 10 September
+# gate run this mislabelled four tickets and reported `blocked_by_guardrails: 0`
+# when the true count was 4 — a governance count, understated, in the artifact
+# the report leads with.
+
+
+def test_a_draft_with_no_resolvable_citation_is_recorded_as_blocked(build):
+    """The model answers confidently and cites nothing."""
+    pipeline = build(
+        client=StubClient([_CLASSIFY_REPLY, "Rate limits apply per organisation."])
+    )
+
+    outcome = pipeline.process(_raw())
+
+    assert outcome.terminal_state is TerminalState.ESCALATED_AFTER_BLOCK
+    assert "grounding" in outcome.blocked_by
+    assert outcome.escalated
+
+
+def test_a_draft_citing_a_passage_it_was_never_given_is_blocked(build):
+    """A marker outside the retrieved set resolves to nothing."""
+    pipeline = build(
+        client=StubClient([_CLASSIFY_REPLY, "See the guidance [9]."])
+    )
+
+    outcome = pipeline.process(_raw())
+
+    assert outcome.terminal_state is TerminalState.ESCALATED_AFTER_BLOCK
+    assert "grounding" in outcome.blocked_by
+
+
+def test_a_blocked_draft_still_carries_its_context_to_the_human(build):
+    """Blocking must not throw away what the agent needs to answer."""
+    pipeline = build(
+        client=StubClient([_CLASSIFY_REPLY, "Rate limits apply per organisation."])
+    )
+
+    outcome = pipeline.process(_raw())
+
+    assert outcome.escalation is not None
+    assert outcome.escalation.sources, "the retrieved passages must survive the block"
+    assert outcome.escalation.draft, "the withheld draft goes to the human, not the bin"
+
+
+def test_a_grounded_draft_is_not_blocked(build):
+    """The control must discriminate, not simply block everything."""
+    outcome = build().process(_raw())
+
+    assert outcome.terminal_state is TerminalState.AUTO_RESPONDED
+    assert outcome.blocked_by == ()
+
+
+def test_no_draft_at_all_is_not_counted_as_a_guardrail_block(build):
+    """Two different events that were reported as one.
+
+    A provider that returns nothing produces no draft, so nothing was withheld —
+    that is a failure. A provider that returns prose citing nothing produces a
+    draft that must not be sent — that is a block. Conflating them lets a
+    provider outage inflate the guardrail activation count, which would make the
+    governance numbers look busiest exactly when the system is least healthy.
+    """
+    pipeline = build(client=StubClient([_CLASSIFY_REPLY, ""]))
+
+    outcome = pipeline.process(_raw())
+
+    assert outcome.terminal_state is TerminalState.ESCALATED_DIRECT
+    assert outcome.blocked_by == ()
+    assert "No draft was produced at all" in outcome.reason

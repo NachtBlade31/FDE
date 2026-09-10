@@ -36,19 +36,24 @@ PROBE_MAX_TOKENS = 700
 # pessimistic way, because this number feeds a gate whose contract is that it may
 # rule a run out but must never wave one through.
 #
-# Cost per call: 47,774 tokens over 74 successful calls in
-# `evaluation/results/2026-09-08-gate-run-cold/metrics.json` = 645.6, rounded UP to 646. That is a
-# floor: calls that raised were billed but recorded nothing, and the blend is 73%
-# cheap classifications (500 max_tokens) to 27% generations (700, plus retrieved
-# passages in the prompt), so a healthier run's mix costs more per call.
+# Cost per call: taken from the two HEALTHY cold runs of 10 September, and
+# rounded up to the more expensive of them.
+#   run 1  75,190 / 116 = 648.2   (2026-09-10-gate-run-1)
+#   run 2  76,224 / 117 = 651.5   (2026-09-10-gate-run-2)  -> 652
+# Both are floors: a call that raised was billed and recorded nothing. The
+# earlier value of 646 came from the *degraded* 8 September run, and by the time
+# a healthy run existed it had become 5 tokens per call optimistic — the wrong
+# side for a number that feeds a gate.
 #
-# Calls per ticket: one classification always, plus one generation for each
-# ticket that auto-responds — so 1 + FCR. The FCR to use is NOT the degraded cold
-# run's 33.75%, which is depressed by 26 tickets that never reached the model;
-# using it here would let a degraded run's failure make the next run look cheap.
-# The shipped-configuration figure is 64.0% on 200 development tickets
-# (`evaluation/results/2026-09-07-routing-200.txt`, margin 0.85), giving 1.64.
-TOKENS_PER_PROVIDER_CALL = 646
+# Calls per ticket: one classification always, plus one generation for every
+# ticket that produces a draft — including drafts the guardrails then withhold.
+# So 1 + FCR, and the FCR must come from a healthy run at the SHIPPED margin:
+# 64.0% on 200 development tickets (`2026-09-07-routing-200.txt`, margin 0.85).
+# Run 2 measured 129 completions for 80 tickets = 1.61, so 1.64 is pessimistic by
+# about 2%. It is NOT the degraded run's 33.75% auto-respond rate, which is
+# depressed by the 26 tickets that never reached the model — using that would let
+# one run's failure make the next run look cheap.
+TOKENS_PER_PROVIDER_CALL = 652
 CALLS_PER_TICKET = 1.64  # 1 classification + 0.64 generation, at the shipped 0.85
 
 

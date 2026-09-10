@@ -28,7 +28,10 @@ from src.token_budget import BudgetView, TokenLedger
 
 REPO = Path(__file__).resolve().parents[1]
 RESULTS = REPO / "evaluation" / "results"
-COLD_RUN = RESULTS / "2026-09-08-gate-run-cold" / "metrics.json"
+HEALTHY_RUNS = [
+    RESULTS / "2026-09-10-gate-run-1" / "metrics.json",
+    RESULTS / "2026-09-10-gate-run-2" / "metrics.json",
+]
 SWEEP = RESULTS / "2026-09-07-routing-200.txt"
 
 
@@ -47,9 +50,16 @@ check_env = _load()
 # --- the constants must agree with the evidence files ------------------------
 
 
-def _measured_cost_per_call() -> int:
-    run = json.loads(COLD_RUN.read_text(encoding="utf-8"))["run"]
-    return math.ceil(run["tokens_used"] / run["provider_calls_succeeded"])
+def _measured_costs_per_call() -> list[int]:
+    """Every healthy run's cost per call, rounded up."""
+    costs = []
+    for path in HEALTHY_RUNS:
+        if not path.exists():
+            continue
+        run = json.loads(path.read_text(encoding="utf-8"))["run"]
+        assert not run["degraded"], f"{path} is degraded and must not set the estimate"
+        costs.append(math.ceil(run["tokens_used"] / run["provider_calls_succeeded"]))
+    return costs
 
 
 def _shipped_fcr() -> float:
@@ -63,9 +73,19 @@ def _shipped_fcr() -> float:
     raise AssertionError(f"no sweep row for the shipped margin {shipped}")
 
 
-@pytest.mark.skipif(not COLD_RUN.exists(), reason="cold-run artifact not present")
-def test_cost_per_call_is_derived_from_the_run_that_measured_it():
-    assert check_env.TOKENS_PER_PROVIDER_CALL == _measured_cost_per_call()
+def test_cost_per_call_is_at_least_what_every_healthy_run_measured():
+    """Directional, not an equality.
+
+    An equality against one artifact pins the constant to that artifact and
+    forbids correcting it — which is how 646, taken from a degraded run, stayed
+    in place until it was 5 tokens per call BELOW what healthy runs measured.
+    The requirement is that the estimate is never optimistic.
+    """
+    costs = _measured_costs_per_call()
+    assert costs, "no healthy run artifact to check against"
+    assert check_env.TOKENS_PER_PROVIDER_CALL >= max(costs)
+    # ...and not absurdly above it either, or the gate refuses everything.
+    assert check_env.TOKENS_PER_PROVIDER_CALL <= max(costs) * 1.25
 
 
 @pytest.mark.skipif(not SWEEP.exists(), reason="sweep artifact not present")
