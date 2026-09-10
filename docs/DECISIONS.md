@@ -1556,9 +1556,20 @@ measured — and not a claim about any individual segment.
 
 **What survives the correction is a lead, and it is a real one.** The
 `asia_pacific` gap is **identical in two independent cold runs**, −38.1 points
-from the same 10/2 split each time, while other segments moved by up to 3 points
-between them. Reproducibility is not significance, but it is a reason to go and
-measure properly where there are 500 tickets rather than 21.
+from the same 10/2 split each time.
+
+I first wrote that this made it distinctive, "while other segments moved by up to
+3 points". That is false, and the table above refutes it: **six of the eleven
+segments are identical between the two runs**, `asia_pacific` among them, and the
+largest movement is `north_america` at 7.4 points (`enterprise`, at n=8, moved
+12.5). Stability is the norm here — both runs route the same 80 tickets and only a
+handful of decisions differ — so reproducibility is much weaker evidence than I
+made it sound.
+
+What is left is the largest gap in the table, at the largest n of any exceeding
+segment, stable across two runs, and not surviving correction. That is a **lead,
+not a result**: a reason to go and measure properly where there are 500 tickets
+rather than 21.
 
 **Not fixed here, deliberately.** The Project Brief forbids tuning against
 validation, and the hidden set is drawn from the same population — so a fix

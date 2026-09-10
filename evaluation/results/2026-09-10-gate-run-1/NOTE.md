@@ -1,6 +1,6 @@
 # Read this before quoting anything from this directory
 
-This run is committed as evidence and **three of its recorded values are wrong**.
+This run is committed as evidence and **four of its recorded values are wrong**.
 They are left as written rather than edited, because an artifact that has been
 corrected after the fact is not an artifact. This note says what to distrust.
 
@@ -46,5 +46,11 @@ the headline artifact. This one is kept because the two runs **disagree about
 whether the sub-3-second latency target is met** — 3.08s here, 2.66s there — and
 reporting only the run that passes would be choosing the answer. Report §7.2
 prints both.
+
+`report.md` in this directory was **re-rendered on 11 September** from the
+`metrics.json` beside it, by commit `d7f8e23`, after a rounding fix — percentages
+now round half-up, so one line reads 46.3% where it previously read 46.2%. The
+underlying figures are untouched and the re-render is byte-reproducible from the
+metrics file with the current code.
 
 See: `docs/DECISIONS.md` D-47, report §7.2 and §8.2.

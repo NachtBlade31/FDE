@@ -554,26 +554,29 @@ def test_a_ledger_failure_cannot_fail_the_run(paths, tmp_path, monkeypatch):
     assert "disk gone" in report["run"]["ledger_error"]
 
 
-def test_percentages_round_half_up_so_the_report_and_the_artifact_agree(paths):
-    """0.5625 formatted with `:.1%` is 56.2% (banker's rounding) while every
-    prose reference to it says 56.3%. The report was made self-consistent and the
-    artifact was not, so the disagreement landed on the headline FCR."""
-    from evaluation.harness import build_report
+def test_percentages_round_half_up(paths):
+    """Literals, not a re-derivation.
 
-    report = build_report([], {"ticket_count": 0})
-    assert report is not None  # build_report is importable; the check below is direct
+    The first version of this test recomputed `expected` with the same Decimal
+    expression as the implementation, so it could not fail unless `pct` diverged
+    from its own formula -- it would not have caught the original bug, which was
+    that `:.1%` uses banker's rounding and printed 56.2% where every prose
+    reference to the same number said 56.3%.
 
-    source, out = paths()
-    run(input_path=source, output_path=out,
-        client=StubClient([_CLASSIFY, _ANSWER] * 60), storage_path=out / "storage")
-    text = (out / "report.md").read_text(encoding="utf-8")
+    0.5625, 0.4375 and 0.0125 are exact halves at one decimal place, which is
+    where the two rounding rules disagree.
+    """
+    from evaluation.harness import _markdown
 
-    # Whatever the rates are, the artifact must never print a half-even result
-    # that its own metrics.json rounds the other way.
-    metrics = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
-    fcr = metrics["business"]["first_contact_resolution"]
-    if fcr is not None:
-        from decimal import ROUND_HALF_UP, Decimal
+    report = _run(paths)
+    report.pop("_outcomes", None)
+    report["business"]["first_contact_resolution"] = 0.5625
+    report["business"]["escalation_rate"] = 0.4375
+    report["technical"]["classification_fallback_rate"] = 0.0125
 
-        expected = Decimal(str(fcr * 100)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-        assert f"{expected}%" in text
+    text = _markdown(report)
+
+    assert "56.3%" in text and "56.2%" not in text
+    assert "43.8%" in text and "43.7%" not in text
+    # The one percentage still using `:.1%` after the first fix.
+    assert "1.3%" in text, "the fallback rate must use the same rounding rule"

@@ -198,15 +198,6 @@ class Validator:
         FR-15 specifies five, and "is there a grounded answer here" is the
         question all three branches ask.
         """
-        prose = _MARKER.sub(" ", answer.text or "")
-        substance = sum(1 for ch in prose if ch.isalnum())
-        if answer.citations and substance < MIN_ANSWER_CHARACTERS:
-            return GuardrailResult(
-                "grounding",
-                False,
-                f"Response carries {substance} characters outside its citation "
-                f"markers; it cites a passage but answers nothing.",
-            )
         if not answer.citations:
             return GuardrailResult(
                 "grounding", False, "Response carried no citation resolving to a retrieved passage."
@@ -216,6 +207,13 @@ class Validator:
             return GuardrailResult(
                 "grounding", False, f"Response cited passage(s) it was never given: {markers}."
             )
+        # Substance is checked LAST of the grounding branches, and the order is
+        # load-bearing. Placed first, it fired on any short draft — including
+        # `"A claim [1]. Another [9]."`, which cites a passage it was never given.
+        # That reported a fabricated reference as merely terse, and left the
+        # unresolved-marker branch (the A6 control) unexecuted by the whole
+        # suite. Fabrication is the more serious finding and must be the one the
+        # escalation names.
         if self._known_chunk_ids is not None:
             missing = [
                 c.chunk_id for c in answer.citations if c.chunk_id not in self._known_chunk_ids
@@ -226,6 +224,21 @@ class Validator:
                     False,
                     f"Citation(s) did not resolve to the corpus: {', '.join(missing)}.",
                 )
+
+        # Last, because everything above is a worse finding than terseness.
+        # Measured on `answer.text`, deliberately NOT `customer_text`: the
+        # disclosure and sources block appended for the customer runs to ~180
+        # characters on its own, so measuring that would make this check inert
+        # and `[1]` would sail through again.
+        prose = _MARKER.sub(" ", answer.text or "")
+        substance = sum(1 for ch in prose if ch.isalnum())
+        if substance < MIN_ANSWER_CHARACTERS:
+            return GuardrailResult(
+                "grounding",
+                False,
+                f"Response carries {substance} characters outside its citation "
+                f"markers; it cites a passage but answers nothing.",
+            )
         return GuardrailResult("grounding", True)
 
     # -- 3. instruction integrity ---------------------------------------------

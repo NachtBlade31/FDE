@@ -596,7 +596,7 @@ def _markdown(report: dict[str, Any]) -> str:
                 f"(excl. provider wait; {technical['processing_latency_p95_seconds']:.2f}s incl.) |"
             )
         ),
-        f"| Classification fallback rate | — | {technical['classification_fallback_rate']:.1%} |",
+        f"| Classification fallback rate | — | {pct(technical['classification_fallback_rate'])} |",
         "",
         "## Governance",
         "",

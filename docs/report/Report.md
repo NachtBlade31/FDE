@@ -265,8 +265,8 @@ feature.
 
 ## 6. Implementation
 
-458 tests, 91% statement-and-branch coverage over `src/` and `evaluation/`
-(92% over `src/` alone), one command (`pytest`), green on a clean checkout
+475 tests, 91% statement-and-branch coverage over `src/` and `evaluation/`
+(91% over `src/` alone), one command (`pytest`), green on a clean checkout
 without an API key.
 
 **What was difficult** — in each case the defect was invisible until the whole
@@ -302,10 +302,24 @@ the report builder is already pure and should be separated properly.
 ### 7.1 Method
 
 Development set (500) for all development and threshold derivation. Validation
-(80) held back and used for a small number of logged checkpoint runs, following
-the Project Brief's instruction rather than the Dataset Guide's looser wording —
-a conflict named here because the two documents disagree. **The hidden set has
-not been run.**
+(80) held back, following the Project Brief's instruction rather than the Dataset
+Guide's looser wording — a conflict named here because the two documents
+disagree. **The hidden set has not been run.**
+
+**Six runs touched the validation set, and all six are listed** in
+[`docs/validation-runs.md`](../validation-runs.md) with their run_id, timestamp,
+duration, token cost and artifact. Four were cold runs — two lost to the provider,
+two healthy and both committed — and two were cache replays that made no provider
+calls, spent no tokens, and existed only to confirm that a code change had not
+moved run 4's counts.
+
+An earlier draft of this sentence said the runs were "logged". They were, in
+`storage/decisions.db`, but no reader could check that without writing a SQL
+query, and a discipline claim you cannot verify is not one. `scripts/list_runs.py`
+now prints the log and the document above records what each run was for. Six runs
+against an 80-ticket set is more than "a small number" implies; the defence is
+that no parameter was derived from any of them, and §8.3's one validation finding
+is explicitly not acted on.
 
 Every threshold was derived by sweep, not chosen. Evidence files carry a
 provenance banner naming the commit, model and all three thresholds they were
@@ -608,19 +622,26 @@ A system that clears the gate — 80 tickets, one command, unattended, no
 degradation, zero deny-list violations, a reconciling decision log, and a
 per-ticket audit trail for all 80.
 
-**Four of nine targets are missed**, and the report says so in its first table
-rather than its last. One of them — the escalation rate — is unreachable by
-construction and was known to be on day zero. One is missed by 0.08 seconds. One,
-first-contact resolution at 53.8%, sits 6.25 points below validation's own label
-ceiling of 60.0%: a real gap, and smaller than the raw target comparison suggests.
+**Three of eight targets are missed**, and the report says so in its first table
+rather than its last. The escalation rate is unreachable by construction and was
+known to be on day zero. First-contact resolution of 56.3% sits **3.75 points**
+below validation's own label ceiling of 60.0% — a real gap, and much smaller than
+the comparison against the 60% target suggests. A fourth, the sub-3-second
+latency target, is **met in one cold run (2.66s) and missed in the other (3.08s)**;
+both are committed, and I report it as straddling rather than picking the run that
+passes.
 
-**The fourth is the fairness condition, and it is the finding I would lead with.**
-The system auto-answers 33.3% of `asia_pacific` tickets where the labels say 71.4%
-are answerable — a −38.1 point deviation against a five-point condition, running
-opposite to `europe` at +12.0. It is well powered (n=21), it is not explained by
-the labels, and it was invisible until there was a healthy run to measure. A
-submission that reported only the eight things that went well would be a less
-useful document than this one.
+**The fairness condition is exceeded, and §8.3 is careful about what that
+establishes.** The system auto-answers 33.3% of `asia_pacific` tickets where the
+labels say 71.4% are answerable — a −38.1 point deviation against a five-point
+condition, the largest gap in the table at the largest n of any segment that
+exceeds. It is **not** established as a finding: eleven segments were tested, and
+after Holm correction nothing survives at 0.05 (`asia_pacific` adjusts from 0.039
+to 0.424). It is a lead to investigate on development data, not a result to
+publish, and §10.2 says what to measure.
+
+A submission that reported only the five targets it met would be a less useful
+document than this one.
 
 What I am most confident in is the negative result: **zero deny-listed tickets
 auto-answered, at every threshold tested, across every run including the degraded

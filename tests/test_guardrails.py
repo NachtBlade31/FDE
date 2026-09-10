@@ -140,12 +140,19 @@ def test_an_answer_with_no_citations_is_blocked(validator):
 def test_an_unresolved_citation_marker_blocks(validator):
     """D7: a marker that resolves to nothing is a fabricated reference."""
     answer = GeneratedAnswer(
-        text="A claim [1]. Another [9].",
+        text="Rate limits apply per organisation and not per key [1]. Another [9].",
         citations=(_passage(),),
         unresolved_markers=(9,),
         disclosure="d",
     )
     result = validator.validate(answer, _ticket(), confidence_applied=True)
+
+    # Assert the REASON, not just that something blocked. The text used to be
+    # "A claim [1]. Another [9]." — 13 characters of prose — so once the
+    # substance branch existed it fired first, this test still passed on the
+    # bare 'grounding in blocked_by' assertion, and the A6 unresolved-marker
+    # branch went unexecuted by the entire suite.
+    assert "never given: 9" in result.checks["grounding"].detail
 
     assert result.passed is False
     assert "grounding" in result.blocked_by
@@ -336,3 +343,47 @@ def test_the_substance_check_does_not_replace_the_resolution_check(validator):
 
     assert not result.passed
     assert "no citation resolving" in result.checks["grounding"].detail
+
+
+def test_a_fabricated_reference_outranks_a_terse_one(validator):
+    """A short draft citing a passage it was never given is a fabricated
+    reference, not a terse answer, and the escalation must say so — that is what
+    the Governance Framework's 'name the unsupported part' requirement rests on."""
+    answer = GeneratedAnswer(
+        text="A claim [1]. Another [9].",   # 13 chars of prose: both branches apply
+        citations=(_passage(),),
+        unresolved_markers=(9,),
+    )
+
+    result = validator.validate(answer, _ticket(), confidence_applied=True)
+
+    assert not result.passed
+    assert "never given: 9" in result.checks["grounding"].detail
+    assert "answers nothing" not in result.checks["grounding"].detail
+
+
+def test_the_substance_floor_sits_where_the_constant_says(validator):
+    """A boundary test, so a future edit to MIN_ANSWER_CHARACTERS cannot silently
+    reopen the gap. `INSUFFICIENT_CONTEXT [1]` scores 19 and is blocked by one."""
+    from src.guardrails import MIN_ANSWER_CHARACTERS
+
+    assert MIN_ANSWER_CHARACTERS == 20
+
+    just_under = _answer(text="a" * 19 + " [1]")
+    just_over = _answer(text="a" * 20 + " [1]")
+
+    assert not validator.validate(just_under, _ticket(), confidence_applied=True).passed
+    assert validator.validate(just_over, _ticket(), confidence_applied=True).checks[
+        "grounding"
+    ].passed
+
+
+def test_a_non_latin_answer_of_reasonable_length_is_not_blocked(validator):
+    """The floor counts alphanumeric characters, and CJK is alphanumeric. The
+    corpus and both splits are ASCII so this has no live effect, but a
+    fairness-adjacent control must not penalise a script by construction."""
+    answer = _answer(text="レート制限は組織ごとに適用され、キーごとではありません。詳細は次を参照 [1]。")
+
+    assert validator.validate(answer, _ticket(), confidence_applied=True).checks[
+        "grounding"
+    ].passed

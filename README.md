@@ -129,7 +129,7 @@ This is the single documented test command (A12). It needs no API key — model
 interactions in tests use recorded fixtures — so it passes on a clean checkout
 before you have obtained credentials.
 
-> **It takes about 15 minutes** (458 tests). Most of that is the retrieval and
+> **It takes about 15 minutes** (475 tests). Most of that is the retrieval and
 > pipeline tests, which build a real embedding index rather than mocking one.
 > It has not hung. For a faster signal while working, `pytest tests/test_route.py
 > tests/test_guardrails.py tests/test_token_budget.py` covers the governance
