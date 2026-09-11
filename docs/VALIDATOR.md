@@ -254,12 +254,14 @@ All four applied to the spec before Day 1 code, not deferred.
   layer 2 reads surface tokens, layer 3 reads the distribution. Fires precisely on the
   co-failure case.
 
+| 11 | 2026-09-11 | `[1]` released to customers; retracted-claim sweep | **BLOCKED** | Four blocking, three of them the same propagation defect for the ninth time. §10.1 reinstated `well powered (n=21)` and the `europe` contrast — both retracted in review 9, two hundred lines earlier in the same document — and quoted run 1's 53.8% FCR as the delivered headline under a run-2 report. D-46 still carried "moved by up to 3 points", refuted by the corrected table 58 lines above it. The substance check added in the previous commit was placed first among the grounding branches, so it fired on any short draft including one citing a passage it was never given: that reported a **fabricated reference as merely terse** and left `guardrails.py:215-216` — the A6 control — unexecuted by the entire suite, while its test still passed because it asserted only that something blocked. And six runs had touched the validation set with two undisclosed, against a §7.1 claim that they were "logged" |
+
 
 ## A note on the review count
 
 Reviews 7 to 10 were run but not recorded here at the time, which is a breach of
 this charter's own rule that no phase proceeds without a verdict in the table
-above. The validator caught it in review 10. The rows are reconstructed from the
+above. The validator caught it in review 10 — and it recurred immediately: review 11 was itself unlogged until the same question was asked again, hours later. The habit is the problem, not the backlog. The rows are reconstructed from the
 review outputs and the commits that answered them; the substance was acted on
 when it was given, but a governance log written retrospectively is weaker
 evidence than one written as you go, and it is labelled as such here.

@@ -741,4 +741,4 @@ reported. Where a claim could not be verified it is labelled as unverified.
 - **F** — Governance Framework (risk register, fairness audit, incident procedure)
 - **G** — Decision record: 47 decisions with evidence (`docs/DECISIONS.md`)
 - **H** — Evaluation artifacts (`evaluation/results/`), each with a provenance banner
-- **I** — Validator charter and ten review verdicts (`docs/VALIDATOR.md`)
+- **I** — Validator charter and eleven review verdicts (`docs/VALIDATOR.md`)
