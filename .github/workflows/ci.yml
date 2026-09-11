@@ -47,19 +47,41 @@ jobs:
           # are expected and must not trip this.
           PATTERN='(gsk_[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36})'
 
+          # Two EXACT values are permitted, and nothing else. They are the
+          # fixtures `tests/test_guardrails.py` feeds to the private-data
+          # guardrail: you cannot test a secret detector without a string shaped
+          # like a secret. The first decodes from base64 to
+          # "fakekeyfakekeyfakekey"; the second is the letter 'a' thirty-six
+          # times. Neither has ever been a credential.
+          #
+          # This is an allowlist of literal values, not a relaxed pattern and not
+          # an excluded path: any OTHER credential-shaped string, anywhere
+          # including tests, still fails the build. `tests/test_ci_allowlist.py`
+          # fails if this list and the fixtures ever drift apart.
+          #
+          # They are allowlisted rather than removed because they are already in
+          # the committed history, and rewriting forty-two commits of history to
+          # delete two strings that were never secret would cost more than it
+          # buys.
+          ALLOWED='(gsk_ZmFrZWtleWZha2VrZXlmYWtla2V5|ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)'
+
           echo "--- scanning tracked files ---"
-          if git grep -nIE "$PATTERN" -- . ':!.github/workflows/ci.yml'; then
+          HITS=$(git grep -nIE "$PATTERN" -- . ':!.github/workflows/ci.yml' | grep -vE "$ALLOWED" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
             echo "::error::A credential-shaped string was found in tracked files."
             exit 1
           fi
 
           echo "--- scanning committed history ---"
-          if git log -p --all | grep -nIE "$PATTERN"; then
+          HITS=$(git log -p --all | grep -nIE "$PATTERN" | grep -vE "$ALLOWED" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS" | head -20
             echo "::error::A credential-shaped string was found in git history."
             exit 1
           fi
 
-          echo "No credentials found."
+          echo "No credentials found beyond the two documented test fixtures."
 
       - name: Fail if .env was ever committed
         run: |
