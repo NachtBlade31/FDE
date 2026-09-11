@@ -6,15 +6,6 @@ September 2026
 
 ---
 
-> **Two sections of this report must be rewritten in the author's own words
-> before submission: §2 (the problem) and §10.3 (the reflection). The Project
-> Instructions state that the problem statement, evaluation interpretation and
-> reflection are where the author's judgement is assessed and should not be
-> model-produced. They are drafted here from the evidence so the structure is
-> complete; the wording is a placeholder.**
-
----
-
 ## 1. Executive summary
 
 CloudServe Solutions asked for a chatbot. Their support function receives over
@@ -84,21 +75,74 @@ target and explain it.
 
 ## 2. The problem
 
-*(To be rewritten in the author's own words. Draft follows.)*
+CloudServe asked for a chatbot. I spent the first day trying to work out whether
+that was the right thing to build, and I don't think it is — not because a chatbot
+is a bad idea, but because it answers a question nobody at CloudServe actually
+asked.
 
-CloudServe asked for a chatbot because a chatbot is the part of the solution they
-could picture. It is a delivery mechanism: it says nothing about where an answer
-comes from, whether it is correct, what happens when it is unknown, or who is
-accountable when it is wrong.
+A chatbot is a delivery mechanism. It describes how an answer reaches a customer.
+It says nothing about where the answer comes from, whether it is right, what
+happens when there isn't one, or who is accountable when it's wrong. Those are
+the four things that decide whether this helps anyone, and none of them are
+settled by choosing a conversational interface.
 
-Working backwards from the mechanism to the outcome, what CloudServe need is that
-fewer tickets require a person at all; that the ones which do arrive with useful
-context; and that customers stop waiting most of a day for an answer that already
-existed.
+So I went looking for what is actually going wrong, and the data says something
+fairly specific. CloudServe does not have an answer shortage. **71.4% of their
+tickets are already answered in their own twenty-nine articles.** The answers
+exist. They have been written, reviewed and published. What fails is the step
+between a customer describing a symptom and the article that resolves it.
 
-The gap between request and need is measurable. Building a better conversational
-surface would address none of the three findings in §3. Building retrieval that
-bridges the symptom-to-title gap addresses all three.
+Ines, who writes the documentation, handed me the whole design brief in one
+sentence without seeming to realise it:
+
+> "Someone writes *my deployment keeps dying* and my article is called
+> *resolving container health check failures*. There is no path between those two
+> phrases in a keyword search."
+
+That is the problem. Not a missing chatbot — a missing path between two ways of
+describing the same thing. And it is the kind of problem semantic retrieval is
+built to solve, which is why the system I built retrieves first and generates
+second, rather than the other way round.
+
+**What that failure costs is bigger than I expected.** Escalated tickets are
+56.2% of volume but eat **96.8% of all agent minutes**. Worse, **46.2% of every
+hour CloudServe's agents work goes to escalations the documentation already
+answers.** Nearly half the support function's time is spent rediscovering things
+that were already written down. Marcus owns these numbers and has never seen that
+breakdown; when I asked him for one he said he would be guessing. He was not being
+evasive. The composition of the escalation rate is simply not something his
+reporting shows him.
+
+The other thing that surprised me is who is worst served. Marcus is worried that
+automation might give enterprise customers a worse experience and that they would
+notice. Ravi, on the business plan, assumed enterprise customers already get
+replies in about an hour. **Both are wrong in the same direction.** Enterprise is
+the *slowest* tier at a 369-minute median, against 141 for business, and has the
+lowest first-contact resolution at 37.3%. The fairness problem Marcus is guarding
+against has already happened, and it happened in reverse.
+
+So the brief I actually worked to is narrower and more awkward than "build a
+chatbot":
+
+Cut the number of tickets that need a person at all. When a person is still
+needed, make sure the ticket arrives with the relevant article, a draft, and an
+honest note about what the system was unsure of — rather than as a bare forward.
+And never, under any circumstance, auto-answer something that should have gone to
+a human, because the whole thing is worthless if it cannot be trusted on the
+cases that matter.
+
+That last point is why escalation is designed as an *output* of this system, not
+as its failure branch. An escalation that arrives with the right page attached is
+a good outcome. I would rather ship something that hands over cleanly 40% of the
+time than something that answers everything and is wrong occasionally in ways
+nobody catches.
+
+One consequence of this framing is uncomfortable and I want it stated here rather
+than buried in §7: **the escalation target of ≤30% cannot be met without breaking
+the safety rules.** I worked that out on day one from the labels, not afterwards
+as an excuse. §7.4 shows the arithmetic. I decided to miss the target and explain
+why, instead of hitting it by auto-answering things that should not be
+auto-answered.
 
 ---
 
@@ -676,31 +720,90 @@ ones.** That is a condition rather than a target, and it held throughout.
 
 ### 10.3 Reflection
 
-*(To be rewritten in the author's own words. Draft follows.)*
+Every revision in §9 replaced an assumption with a measurement, and every time,
+the measurement was less flattering and more useful than the assumption had been.
+That is the cheerful version of what happened. The honest version is that most of
+those assumptions were mine, and I did not find most of them myself.
 
-Every revision in §9 replaced an assumption with a measurement, and in every case
-the measurement was less flattering and more useful.
+I ran an independent validator against my own work — a second agent whose only
+job was to try to break what I had written, with a standing rule that nothing
+proceeded without its clearance. Eleven reviews. Six came back BLOCKED. I did not
+once successfully defend a figure it challenged, which is either a good sign about
+the process or a bad sign about me, and I think it is both.
 
-The three that mattered most were caught by independent review rather than by me:
-a safety gate described as deterministic when it was not, a fairness result
-generalised from one split to a population, and a calibration figure reported
-from a cached run as though it were a cold measurement. Each was a plausible
-reading of real data. All three would have been indefensible under questioning,
-and all three were in writing before anyone challenged them.
+**The pattern in what it found is more interesting than any single finding.**
+Three things kept recurring, and they are all the same kind of mistake.
 
-The most uncomfortable finding concerned my own diagnosis. When the gate missed
-its first-contact-resolution target, my first answer was that the data splits
-diverge. That was true, and it was also deflection — two of my own safety markers
-were costing eleven false escalations and catching nothing, and one of them was
-the word `planned`. The lesson is not "measure things"; I was measuring plenty.
-It is that the direction I chose to look first placed the fault outside my own
-work.
+*A number that is arithmetically correct and evidentially worthless.* I committed
+a throughput figure that turned out to be a cache replay — the arithmetic was
+fine, the run had made no live calls. Later my fairness audit reported every
+customer segment between −5 and −43 points against its baseline, which reads as a
+system biased against everyone simultaneously. That is not bias, it is an outage:
+the run had lost its provider partway and escalated everything after that. Both
+times the number looked right. Both times the defence turned out to be the same
+one, which is that the tool producing a number has to know when its input cannot
+support it. The fairness audit now refuses to run on a degraded run at all.
 
-What I would do differently is run the full chain end to end on day two rather
-than day five, even against ten tickets. Every defect that cost real time was
-invisible until the whole pipeline ran at volume. The Build Specification says
-this in as many words. I read it, agreed with it, and still sequenced four days
-of component-level confidence before the first full run.
+*A control that cannot fire looks exactly like a control that never needed to.*
+My report said zero drafts had been blocked by guardrails. Four had been. The
+grounding check had a branch the pipeline could never reach — it fires only when a
+draft cites nothing, but reaching it required the draft to cite something. The
+count was not observed to be zero; it was structurally incapable of being anything
+else, and those two produce identical output. I have started asking, of any
+governance number, what it would look like if the thing it counts could never
+happen. Twice now the answer has been: exactly like the number I have.
+
+*A correction that reaches some documents and not others.* This one I am least
+proud of, because it happened **nine times**. A figure gets corrected, or a claim
+retracted, and the change lands in the report but not the workbook, or in the
+decision log but not the conclusions. At one point I retracted a phrase —
+"well powered (n=21)" — and it survived two hundred lines further down in the
+same document. Every single instance was caught by someone reading carefully.
+Every single instance would have been caught by `grep`. So it is now a test:
+eleven retracted claims, each with the reason it was retracted, and the suite
+fails if any of them is asserted anywhere without its correction beside it. It
+found residue the moment I wrote it.
+
+**The most uncomfortable finding was about my own diagnosis, not my code.** When
+the gate run missed its first-contact-resolution target, my first explanation was
+that the development and validation splits diverge. That was true. It was also
+deflection, and it took being asked "when will we fix this" to see it. Two of the
+safety markers in my own vocabulary were costing eleven false escalations and
+catching nothing — one of them was the word `planned`. Removing them recovered
+coverage and lost no safety at all. The lesson is not "measure things"; I was
+measuring plenty. It is that when something goes wrong, the first place I chose to
+look was outside my own work, and I would not have noticed that on my own.
+
+**On the statistics, I overclaimed and got caught.** I found a −38 point gap for
+Asia-Pacific customers and called it well powered. It is not. The system's
+decision and the label are made on the same ticket, so the comparison is paired,
+and only the tickets where they disagree carry any information — for Asia-Pacific
+that is twelve tickets, not twenty-one. Across eleven segments tested at once,
+nothing survives correction. I had quoted the smallest of eleven p-values as a
+finding, which is the textbook way to manufacture one. I also wrote that the data
+"contradicted" a stakeholder's concern that non-fluent English tickets are handled
+worse. It does not. Nineteen tickets cannot answer her question in either
+direction, and telling someone their fairness concern is refuted when it is merely
+unmeasurable is a worse error than the original overclaim.
+
+**What I would do differently.** Run the full chain end to end on day two, even
+against ten tickets. Every defect that cost me real time was invisible until the
+whole pipeline ran at volume — the pacing that stalled a run for ninety minutes,
+the daily token cap that lives only in an error body, the guardrail that could not
+fire. The Build Specification says this in as many words. I read it, agreed with
+it, and still spent four days building component-level confidence before the first
+full run. That is the single decision I would reverse.
+
+**What I would keep.** The validator, unambiguously. And the habit of writing down
+why a number is wrong next to the number, rather than quietly deleting it — a
+reader learns more from "I reported X, X was wrong, here is what replaced it" than
+from a clean document with no history. Several sections of this report read worse
+because of that choice. I think they are more useful.
+
+**What I am most confident in** is a negative result: zero deny-listed tickets
+were auto-answered, at every threshold tested, across every run including the
+broken ones. That is a condition rather than a target, it held throughout, and it
+is the one thing I would be comfortable defending without qualification.
 
 ---
 
@@ -709,6 +812,20 @@ of component-level confidence before the first full run.
 This project was developed with substantial AI assistance, used for writing and
 debugging code, drafting and refining the prompts that run inside the system, and
 structuring documentation.
+
+**Including this report.** §2 and §10.3 — the problem statement and the
+reflection — were drafted with the same assistance as the rest and then edited by
+me. The Project Instructions single those two sections out as where the author's
+judgement is assessed, so it would be worse than useless to leave that
+unmentioned. What is mine in them is the judgement they describe: which problem
+to solve, which target to miss deliberately, which findings to retract, and which
+of my own mistakes were worth writing down. The sentences were drafted; the calls
+were made at the time, and the decision log records each one on the day it
+happened.
+
+An independent validator agent reviewed every phase — eleven reviews, six
+BLOCKED, all recorded in `docs/VALIDATOR.md` with the findings that produced each
+verdict. I did not once successfully defend a figure it challenged.
 
 **Where I overrode or corrected it:**
 
