@@ -1,11 +1,14 @@
 # Product Requirements Document — v1.0
 
+*Stage 2 workbook: Requirements*
+
 | Field | Value |
 |---|---|
 | Version | 1.0 |
 | Written by | Kshitiz Bhargava |
 | Date | 2026-09-04 |
 | Status | Draft for review |
+| Approved by | — (individual project) |
 | Supersedes | — |
 
 > **This document is deliberately written before the build.** Stage 5 requires a
@@ -13,6 +16,43 @@
 > written alongside v2 has no genuine trigger to record. Parts of this will turn
 > out to be wrong; that is the point, and §8 records the assumptions most likely
 > to fail.
+
+> **Template conformance, added 2026-09-14 when packaging.** Checked against the
+> Stage 2 template, this v1 lacked some columns and one section the template asks
+> for: *Accuracy* and *Auditability* as named non-functional categories and a
+> *How it will be verified* column (§5); *What would have to change* for each
+> exclusion (§4); *Why you believe it* for each assumption (§8); *Measured how*,
+> *Reported by* and a customer-satisfaction row for success measures (§6); and an
+> *Open questions* section (§10). Those were added on that date and are marked
+> **†**. **No requirement, priority, target or assumption written on 4 September
+> was changed** — the Stage 5 revision log depends on v1 standing as written. The
+> open questions are taken from the register kept in `docs/DECISIONS.md` during the
+> build, not reconstructed.
+>
+> Three further changes are recorded here rather than left silent. The **Approved
+> by** row was added to the document-control table. One original cell was
+> corrected: the escalation-rate note said "See §8" for a section that is §7. And
+> §2 carried a note saying the problem statement must be rewritten in the author's
+> own words before submission; that note was removed on 2026-09-14 and replaced by
+> the declaration in report §11, which names this paragraph, the report's §2 and
+> the Stage 1 workbook's §6 as drafted with AI assistance. The paragraph itself is
+> unchanged since 4 September.
+
+**Where each template section is in this document †**
+
+| Template section | In this document |
+|---|---|
+| 1 Document control | The table above |
+| 2 The problem in one paragraph | §2 |
+| 3 Who this is for | §3 |
+| 4 Functional requirements | §4 |
+| 5 Non-functional requirements | §5 |
+| 6 What is deliberately out of scope | §4, *Deliberately out of scope* |
+| 7 Assumptions and their consequences | §8 |
+| 8 Success measures | §6 |
+| 9 Open questions | §10 |
+
+Sections beyond the template: §1 Evidence register, §7 the escalation target, §9 Traceability.
 
 ---
 
@@ -54,10 +94,6 @@ speaker; data citations were computed from `development_tickets.json` (n=500) an
 > against a 2-hour commitment, 43.8% first contact resolution, and a support
 > function whose most experienced people spend their time re-answering solved
 > problems.
-
-**Author's note:** this paragraph must be rewritten in Kshitiz's own words before
-submission. The Project Instructions are explicit that the problem statement is
-where the author's judgement is assessed and should not be model-produced.
 
 ---
 
@@ -108,42 +144,44 @@ with a stated consequence. **Could** — adds value if time allows.
 
 ### Deliberately out of scope (Will not)
 
-| ID | Excluded | Why |
-|---|---|---|
-| WN-01 | A customer-facing conversational chatbot | The request, not the problem (§2). A chatbot is a delivery mechanism and addresses none of E-01 through E-04 |
-| WN-02 | Learning from agents' private snippet files | Daniel: some are years out of date; training on them scales up a mistake |
-| WN-03 | Writing to the knowledge base | Ines owns editorial control; an automated writer bypasses her review cycle |
-| WN-04 | Multilingual translation | Not evidenced; the fluency issue (E-12) is a retrieval problem, not a translation one |
-| WN-05 | Live ticketing-system integration | No such system is supplied; the harness is file-driven, which is what A9 requires |
+| ID | Excluded | Why | What would have to change for this to be reconsidered † |
+|---|---|---|---|
+| WN-01 | A customer-facing conversational chatbot | The request, not the problem (§2). A chatbot is a delivery mechanism and addresses none of E-01 through E-04 | Evidence that customers want a conversation rather than an answer. None of the five transcripts asks for one |
+| WN-02 | Learning from agents' private snippet files | Daniel: some are years out of date; training on them scales up a mistake | The files are reviewed and brought under the same editorial control as the knowledge base |
+| WN-03 | Writing to the knowledge base | Ines owns editorial control; an automated writer bypasses her review cycle | Ines adopts a review queue the system could submit drafts into, rather than publish to |
+| WN-04 | Multilingual translation | Not evidenced; the fluency issue (E-12) is a retrieval problem, not a translation one | Evidence that non-fluent tickets fail on language rather than on retrieval |
+| WN-05 | Live ticketing-system integration | No such system is supplied; the harness is file-driven, which is what A9 requires | A live ticketing system with an API is supplied; the file-driven harness becomes an adapter |
 
 ---
 
 ## 5. Non-functional requirements
 
-| ID | Requirement | Target | Evidence |
-|---|---|---|---|
-| NFR-01 | End-to-end latency, 95th percentile | < 3 s, reported with and without provider backoff | Brief §07 |
-| NFR-02 | Availability, including provider failure | Degrades to retrieval-only; run always completes | Brief §07, A11 |
-| NFR-03 | Cost | Zero — free tiers only | Brief §09 |
-| NFR-04 | No credential in source or git history | Zero occurrences | Brief §09 |
-| NFR-05 | Runs from clean checkout on an unfamiliar machine | Following README literally | A1 |
-| NFR-06 | Private data in outbound responses | Zero occurrences | Governance Framework §3 |
-| NFR-07 | Quality variation across customer groups | Reported as delta against the same split's baseline | E-12 |
-| NFR-08 | Confidence calibration | Stated confidence within 5 points of observed accuracy | Evaluation Framework §3 |
+| ID | Category † | Requirement | Target | How it will be verified † | Evidence |
+|---|---|---|---|---|---|
+| NFR-01 | Latency | End-to-end latency, 95th percentile | < 3 s, reported with and without provider backoff | 95th-percentile per-ticket processing time from the harness report, with and without time spent waiting on the provider | Brief §07 |
+| NFR-02 | Availability | Availability, including provider failure | Degrades to retrieval-only; run always completes | Failure injection with the provider disconnected; the run must still complete (A11) | Brief §07, A11 |
+| NFR-03 | Cost | Cost | Zero — free tiers only | Free-tier keys only; token spend recorded per run against the provider's daily allowance | Brief §09 |
+| NFR-04 | Privacy | No credential in source or git history | Zero occurrences | Continuous integration scans tracked files and the full history for credential shapes on every push | Brief §09 |
+| NFR-05 | Portability | Runs from clean checkout on an unfamiliar machine | Following README literally | Clone into an empty directory and follow the README from the first line (A1) | A1 |
+| NFR-06 | Privacy | Private data in outbound responses | Zero occurrences | Private-data guardrail on every response; the harness counts occurrences in released text | Governance Framework §3 |
+| NFR-07 | Fairness | Quality variation across customer groups | Reported as delta against the same split's baseline | Fairness audit: system rate minus the same split's label baseline, per segment | E-12 |
+| NFR-08 | Accuracy | Confidence calibration | Stated confidence within 5 points of observed accuracy | Expected calibration error over a cold classification run | Evaluation Framework §3 |
+| NFR-09 † | Auditability | Every automated decision can be reconstructed after the fact | Every processed ticket appears in the decision log with a terminal state | Reconcile the decision log by identity against the tickets processed in the run (A8) | E-10 — restates the non-functional half of FR-18; adds no new obligation |
 
 ---
 
 ## 6. Success measures
 
-| Measure | Baseline | Target | Note |
-|---|---|---|---|
-| First contact resolution | 43.8% | ≥ 60% | Label ceiling is 65.2%; target is achievable |
-| Escalation rate | 56.2% | ≤ 30% | **Not achievable without a governance breach.** Floor is 34.8%. See §8 |
-| Time to first reply | 8–12 h | < 5 min | Measured as system latency; the schema has no `replied_at` field |
-| Classification precision | — | ≥ 85% | Per class, with confusion matrix |
-| Citation accuracy | — | ≥ 95% | Each citation checked against the sentence it supports |
-| Private data occurrences | — | 0 | Condition, not a target |
-| Deny-list recall | — | Reported for `security_incident` and `compliance_request` specifically | Aggregate would be diluted by structurally-safe classes |
+| Measure | Baseline | Target | Measured how † | Reported by † | Note |
+|---|---|---|---|---|---|
+| First contact resolution | 43.8% | ≥ 60% | Share of tickets auto-responded in an unattended harness run | Head of Support | Label ceiling is 65.2%; target is achievable |
+| Escalation rate | 56.2% | ≤ 30% | Share of tickets escalated, with guardrail blocks counted separately | Head of Support | **Not achievable without a governance breach.** Floor is 34.8%. See §7 |
+| Time to first reply | 8–12 h | < 5 min | Per-ticket processing time | Head of Support | Measured as system latency; the schema has no `replied_at` field |
+| Customer satisfaction † | 2.97 / 5 measured from `history.csat_rating`; the Project Brief reports 3.2 | 4.0+ (Stage 1 §4) | Not measurable in this build — there are no live customers. A rubric-scored sample of responses is the proposed proxy | Head of Support | The measured baseline is *worse* than the figure reported upward |
+| Classification precision | — | ≥ 85% | Predicted against labelled intent, per class | Engineering | Per class, with confusion matrix |
+| Citation accuracy | — | ≥ 95% | Every citation re-resolved to a retrieved passage; whether the passage supports the sentence needs human review | Engineering | Each citation checked against the sentence it supports |
+| Private data occurrences | — | 0 | Private-data guardrail on every response, and a count in released text | Engineering | Condition, not a target |
+| Deny-list recall | — | Reported for `security_incident` and `compliance_request` specifically | Deny-listed tickets auto-answered, per class | Engineering | Aggregate would be diluted by structurally-safe classes |
 
 ---
 
@@ -161,15 +199,15 @@ results are known, rather than constructed afterwards to explain them.
 
 ## 8. Assumptions, and what happens if they are wrong
 
-| ID | Assumption | If wrong | Detection |
-|---|---|---|---|
-| AS-01 | Semantic retrieval bridges the symptom/title gap (E-02) | The central premise fails; the system escalates almost everything | Retrieval hit rate against `expected_doc_ids`, Day 2 |
-| AS-02 | A confidence score from the classifier is calibrated enough to threshold on | The threshold is meaningless and routing is arbitrary | Calibration table, Day 3 |
-| AS-03 | The hidden set resembles validation more than dev on fluency (E-12) | The fairness section's framing must change | Pre-registered method covers both outcomes |
-| AS-04 | Free-tier rate limits permit 120 tickets in one unattended run | A9 fails — the gate | Throughput budget before Day 5 |
-| AS-05 | Whole-document chunking suits a 29-article, ~8k-token corpus | Retrieval precision suffers | Compared on Day 2 |
-| AS-06 | Deny-list marker vocabulary achieves high recall at low false-positive cost | Layer 2 of FR-10 adds noise without safety | Measured on dev, Day 3 |
-| AS-07 | The grader's machine has network access to Groq or OpenRouter | Falls back to retrieval-only; run still completes | FR-21, FR-25 |
+| ID | Assumption | Why you believe it † | If wrong | Detection |
+|---|---|---|---|---|
+| AS-01 | Semantic retrieval bridges the symptom/title gap (E-02) | The gap Ines describes is one of wording, not meaning, and embedding similarity is built to match paraphrase | The central premise fails; the system escalates almost everything | Retrieval hit rate against `expected_doc_ids`, Day 2 |
+| AS-02 | A confidence score from the classifier is calibrated enough to threshold on | The classifier returns a probability. At the time of writing that had not been tested | The threshold is meaningless and routing is arbitrary | Calibration table, Day 3 |
+| AS-03 | The hidden set resembles validation more than dev on fluency (E-12) | The fluency gap appears on validation and not on development, and the pack says the hidden set is "drawn from the same population" | The fairness section's framing must change | Pre-registered method covers both outcomes |
+| AS-04 | Free-tier rate limits permit 120 tickets in one unattended run | The published per-minute limits appear sufficient for 120 tickets | A9 fails — the gate | Throughput budget before Day 5 |
+| AS-05 | Whole-document chunking suits a 29-article, ~8k-token corpus | The articles are short (E-15), so a whole article fits comfortably in one retrieved passage | Retrieval precision suffers | Compared on Day 2 |
+| AS-06 | Deny-list marker vocabulary achieves high recall at low false-positive cost | Deny-listed tickets use distinctive vocabulary — security, compliance and audit terms — and have zero label violations (E-09) | Layer 2 of FR-10 adds noise without safety | Measured on dev, Day 3 |
+| AS-07 | The grader's machine has network access to Groq or OpenRouter | Both are public HTTPS APIs with free tiers | Falls back to retrieval-only; run still completes | FR-21, FR-25 |
 
 ---
 
@@ -179,3 +217,19 @@ The assessed chain is `evidence → FR → prompt → code → test`. It is main
 data rather than prose: `requirement_ids` is a column in the decision log,
 prompts carry the FR they serve in front-matter, and test names reference the
 criterion. A traceability matrix is generated for the report appendix.
+
+---
+
+## 10. Open questions †
+
+Taken from the open-decisions register in `docs/DECISIONS.md`, which was kept
+during the build. Outcomes are recorded as they stand at packaging.
+
+| Question | Why it matters | Owner | Resolve by | Outcome |
+|---|---|---|---|---|
+| O-1 · What chunking strategy? | Retrieval precision depends on the unit retrieved (AS-05) | Kshitiz Bhargava | Day 2 | Resolved — whole-document chunks (D-19) |
+| O-2 · Where is the relevance floor? | Decides when retrieval returns nothing and the ticket escalates (FR-07) | Kshitiz Bhargava | Day 2 | Resolved — derived by sweep (D-20) |
+| O-3 · What confidence threshold? | Decides when the system may answer (FR-09, FR-11) | Kshitiz Bhargava | Day 3 | Resolved — routing moved to the margin, not confidence (D-29) |
+| O-4 · Which safety marker vocabulary? | Layer 2 of the deny-list (FR-10, AS-06) | Kshitiz Bhargava | Day 3 | Resolved — a curated vocabulary (D-27) |
+| O-5 · Does the unattended run fit the free tier? | Whether the gate run can complete at all (AS-04, A9) | Kshitiz Bhargava | Day 3 | Resolved — the per-minute limit binds (D-24). A daily cap found later cost two runs (D-40, D-45) |
+| O-6 · What is the incident procedure? | The Governance Framework requires six steps, each with an owner and a duration | Kshitiz Bhargava | Day 8 | Resolved 2026-09-08 — Governance Framework §5 |

@@ -50,7 +50,7 @@ outputs are in `evaluation/results/`, so any number here can be re-derived.
 | Split by intent | 22 classes, unevenly spread. Largest: `data_export` and `data_residency` (29 each). Smallest: `rate_limit` (13). | computed | No dominant class. A system good at two intents would help very little. |
 | Split by urgency | medium 226, high 146, low 128 | computed | 29% are high urgency, which is a large share to be sitting in an age-sorted queue. |
 | Proportion resolved on first contact | **43.8%** (219/500) | `history.first_contact_resolution` | Matches Marcus's 42% almost exactly. His headline number is sound. |
-| Average satisfaction rating | **2.97 / 5** | `history.csat_rating` | *Lower* than the 3.2 Marcus reported. The situation is slightly worse than he is reporting upward. |
+| Average satisfaction rating | **2.97 / 5** | `history.csat_rating` | *Lower* than the 3.2 in the Project Brief. The situation is slightly worse than he is reporting upward. |
 | Most frequent single question | Deployment/rollback themes together are the largest cluster; `data_export` and `data_residency` the largest single classes | computed | — |
 | **Proportion answerable from existing documentation** | **71.4%** (357/500) | `labels.answerable_from_docs` | **The central finding.** Sofia's "seven out of ten" is right, and it means the problem is delivery, not knowledge. |
 | Proportion non-fluent, and their outcomes | 120/500 (24%). Dev FCR 45.8% vs fluent 43.2%; validation 21.1% vs 54.1% | computed | The two splits disagree sharply. Any claim about a fluency gap must name its split. |
@@ -113,7 +113,7 @@ one that only drafts text at step 5 does not.
 |---|---|---|---|---|
 | First contact resolution | Marcus, and it is what he actually cares about | **43.8%** (measured) | 60–65% | **High.** Measured directly and matches his stated 42%. |
 | Time to first reply | Reported to the executive team; in the service agreement | 8–12 h (Marcus's figure) | Under 2 h contractually, under 5 min aspirationally | **Low.** Not derivable from the data — there is no `replied_at` field. Median `resolution_time_minutes` is 214 (3.6 h), which measures something different. |
-| Customer satisfaction | Marcus; surfaces at renewal | **2.97 / 5** (measured) | 4.0+ | **High for the figure, low as a proxy.** It is *worse* than the 3.2 he reports. |
+| Customer satisfaction | Marcus; surfaces at renewal | **2.97 / 5** (measured) | 4.0+ | **High for the figure, low as a proxy.** It is *worse* than the 3.2 in the Project Brief. |
 | Escalation rate | Marcus, as the mirror of FCR | 56.2% | ≤ 30% | **High** for the measurement, but the target is unreachable — see below. |
 | Cost per escalation | Marcus, informally | ~4× a resolved ticket | Fewer escalations | **Low.** His figure, unverified, no cost data supplied. |
 | Agent attrition | Marcus | "rising"; two seniors left last quarter citing workload | Stable | **None.** No data. Recorded as an open question. |

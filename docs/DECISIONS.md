@@ -435,16 +435,22 @@ terminates in a cliff — not as an optimum.
 
 Assumption AS-01 was that semantic retrieval bridges the symptom-to-title gap
 Ines described. Measured: **95.2% any-hit@3, 88.2% recall@3** across the 357
-groundable development tickets.
+groundable development tickets — on ranking alone. At the **0.40** relevance floor
+the system ships, any-hit@3 is **92.7%**, because the floor exists to return
+nothing rather than something irrelevant. Both numbers are in
+`2026-09-04-retrieval-tuning.txt`; the second is the one the built system
+delivers, and the first is the one a summary is tempted to quote.
 
 A test asserts the bridge directly — the query "my deployment keeps dying" must
 retrieve a `DOC-DEPLOY` article — and a second asserts the hit rate does not fall
-below 60%. If either breaks, the premise is wrong and the design needs revisiting
+below 90%, the bound review 4 asked for and which was left at 60% until review 12
+noticed. If either breaks, the premise is wrong and the design needs revisiting
 rather than patching.
 
 > **Video line:** "Ines said there is no path between 'my deployment keeps dying'
 > and 'resolving container health check failures' in a keyword search. There
-> isn't. There is in an embedding, and it finds the right article 95% of the time."
+> isn't. There is in an embedding, and it finds the right article in the top three
+> ninety-three percent of the time at the floor we actually ship."
 
 ---
 
@@ -1672,6 +1678,88 @@ happen — and both times the answer was: exactly like the number I had.
 
 ---
 
+## D-48 · Packaging against the Submission Guide found what the build never checked
+
+**Tag:** `NUMBERS` · **Date:** 2026-09-14 · **Status:** Implemented
+
+**Packaging started on 14 September, the day after the original deadline, which
+was then extended to 20 September.** Packaging should have started a week earlier;
+every gap below would have been found then.
+
+Reading the Submission Guide line by line, rather than from memory, found gaps
+that eleven validator reviews had not looked for — because every review was
+pointed at the system and its numbers, and none at the submission rules.
+
+**The report's largest number had no code behind it.** "Escalations are 56.2% of
+tickets and consume 96.8% of agent minutes; 46.2% of all agent time went to
+escalations the documentation already answered" was typed into the Stage 1
+workbook and copied into the report. It reproduced exactly when checked — 281 of
+500 tickets; 204,175 of 210,849 minutes; 97,389 minutes — but a headline figure
+nothing computes is one edit away from the drift this project has had nine times.
+`scripts/analyse_agent_time.py` now computes it and draws Figure 1 from the same
+pass, with its output committed as `evaluation/results/2026-09-14-agent-time.txt`
+and tests that bind the report's quoted figures to the dataset.
+
+**Figure 1 was cited and did not exist, and only one of nine tables had a
+caption.** The Guide requires every figure and table numbered, captioned and
+referred to in the text. All eleven tables and the figure now are.
+
+**The first render of Figure 1 failed its own accessibility check.** Value labels
+sat inside the bars. On the blue fill, ink measured 4.46:1 and white 4.42:1 —
+both under the 4.5:1 that small text needs, so no choice of label colour could
+make it legible to the standard. The labels moved above the bars, and the axis
+ticks moved from the palette's muted grey, about 3.5:1, to secondary ink. A test
+now fails if any value label sits inside a filled bar.
+
+**Report §8 had no risk register and no incident procedure.** The Guide requires
+both there. Both had existed in the Governance Framework since 8 September
+(commit `600602b`) — but the open-questions register in this file still listed
+the incident procedure as open, six days after it was written.
+
+**The hidden-set checklist line was unanswered.** The report said the hidden set
+"has not been run" without saying why. No hidden set was supplied; the report now
+says so, and that the closest held-back split, validation, was used six times
+rather than once.
+
+**The Stage 2 workbook did not match its template.** The PRD lacked template
+columns and an Open questions section. They were added, dated and marked, with no
+requirement, target or assumption from 4 September changed, because the Stage 5
+revision log depends on v1 standing as written. Its §2 also carried a note saying
+the problem statement had to be rewritten in the author's own words; removing that
+note without doing what it asked would have quietly dropped the obligation, so the
+removal is recorded in the PRD itself and the report's §11 declaration now names
+every document the drafted problem statement appears in. The report's Appendix B also
+promised a PRD v1.1 document that was never written; the revision exists only as
+the change-by-change record in the Stage 5 log, and the appendix now says that.
+
+**Five of six recovery handlers had never run**, carried from review 10 where it
+was first raised.
+`tests/test_recovery.py` injects a failure into each node and asserts the failure
+was *recorded*, so a test cannot pass by never reaching its node. That assertion
+immediately caught a defect in its own fixture.
+
+**The printed PDF had layout faults invisible in Markdown.** Keeping whole tables
+unbroken stranded captions at page ends and left half of page 1 blank, and short
+identifiers wrapped at the hyphen. Both were fixed in the PDF build used for
+packaging, which is kept outside the repository with the rest of the packaging
+tooling. The rendered report body was then measured at **20 pages**, excluding
+appendices, against the Guide's 20-30 — the bottom of the range, and close enough
+to it that a different renderer could fall under.
+
+**Provenance banners now mark uncommitted code.** One had named a commit that
+could not have produced its artifact.
+
+**The video has not been recorded.** A submission missing any of its four parts
+"is treated as incomplete". Until it exists, the archive's video folder holds a
+file that says so, rather than being empty or implying the part is present.
+
+> **Video line:** "Packaging is where I found the report's biggest number had no
+> code behind it. It was right —
+> I checked — but it was typed, not computed. Now a script produces it and draws
+> the chart. Read the submission rules before the last day, not on it."
+
+---
+
 ## Open decisions
 
 | # | Question | Due |
@@ -1681,4 +1769,4 @@ happen — and both times the answer was: exactly like the number I had.
 | ~~O-5~~ | ~~Throughput budget~~ — 8000 TPM binding; 6.1 min/120 tickets for classification, see D-24 | ✅ Day 3 |
 | ~~O-3~~ | ~~Confidence threshold~~ — resolved, see D-29 (margin, not confidence) | ✅ Day 3 |
 | ~~O-4~~ | ~~Marker vocabulary~~ — resolved, see D-27 | ✅ Day 3 |
-| O-6 | Incident procedure, six steps with owner and duration | Day 8 |
+| ~~O-6~~ | ~~Incident procedure, six steps with owner and duration~~ — resolved 2026-09-08 in Governance Framework §5 (commit `600602b`). This register was not updated at the time, and still listed it as open six days later | ✅ 2026-09-08 |

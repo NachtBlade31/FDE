@@ -241,7 +241,12 @@ def test_retrieval_hit_rate_on_groundable_development_tickets(retriever):
     hit_rate = hits / len(tickets)
     print(f"\nretrieval any-hit@3 on {len(tickets)} groundable dev tickets: {hit_rate:.1%}")
 
-    assert hit_rate >= 0.60, f"any-hit@3 fell to {hit_rate:.1%}; AS-01 is in doubt"
+    # 0.90, not 0.60. Review 4 asked for this bound (D2-C3) and review 5 recorded
+    # it as applied; it was still 0.60 when review 12 checked. Measured 95.2% on
+    # 2026-09-04 and unchanged since, so 0.60 could have halved before failing.
+    # This fixture retrieves at floor 0.0, so it measures ranking; the shipped
+    # 0.40 floor yields 92.7% and is covered by the report and D-21.
+    assert hit_rate >= 0.90, f"any-hit@3 fell to {hit_rate:.1%}; AS-01 is in doubt"
 
 
 # --- D2-C1: the derived floor must be the shipped floor ----------------------

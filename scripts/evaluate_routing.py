@@ -65,6 +65,14 @@ def print_provenance(settings, extra=None):
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True, text=True, cwd=REPO, timeout=10,
         ).stdout.strip() or "unknown"
+        # Mark uncommitted code, or the banner names a commit that did not
+        # produce this artifact (validator finding C-5).
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True, text=True, cwd=REPO, timeout=10,
+        ).stdout.strip()
+        if dirty:
+            commit = f"{commit}-dirty"
     except Exception:  # pragma: no cover - provenance must never break a run
         commit = "unknown"
 

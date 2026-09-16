@@ -240,14 +240,23 @@ def report_field(
 
 
 def git_commit() -> str:
+    """The commit, marked `-dirty` when the working tree differs from it.
+
+    This banner once named a commit that could not have produced the artifact:
+    the audit was run from uncommitted code and stamped the previous HEAD, so the
+    Holm-adjusted table in `2026-09-10-fairness-validation.txt` claimed a commit
+    whose script had no Holm code in it (validator finding C-5).
+    """
     try:
-        return (
-            subprocess.run(
-                ["git", "rev-parse", "--short", "HEAD"],
-                capture_output=True, text=True, cwd=REPO, timeout=10,
-            ).stdout.strip()
-            or "unknown"
-        )
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, cwd=REPO, timeout=10,
+        ).stdout.strip() or "unknown"
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True, text=True, cwd=REPO, timeout=10,
+        ).stdout.strip()
+        return f"{commit}-dirty" if dirty else commit
     except Exception:  # pragma: no cover - provenance must never break a run
         return "unknown"
 

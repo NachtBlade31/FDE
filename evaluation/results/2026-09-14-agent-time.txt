@@ -1,0 +1,22 @@
+==============================================================================
+PROVENANCE
+==============================================================================
+  generated : 2026-09-14T21:44:17
+  commit    : a26b27a-dirty
+  tickets   : development_tickets.json
+==============================================================================
+
+tickets              : 500
+agent minutes        : 210,849
+
+bucket                              tickets   share   minutes   share
+----------------------------------------------------------------------
+Escalated — answerable from docs        138   27.6%    97,389   46.2%
+Escalated — not answerable              143   28.6%   106,786   50.6%
+Resolved at first contact               219   43.8%     6,674    3.2%
+
+escalated share of tickets               : 56.2%
+escalated share of agent minutes         : 96.8%
+answerable escalations, share of minutes : 46.2%
+
+figure written: docs/report/figures/figure1_agent_time.svg

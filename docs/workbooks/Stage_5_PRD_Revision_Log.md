@@ -32,11 +32,11 @@ record. Everything below has a dated trigger and a specific measurement.
 
 | ID | Assumption | Outcome | What it cost |
 |---|---|---|---|
-| **AS-01** | Semantic retrieval bridges the symptom-to-title gap | **Held, strongly.** 95.2% any-hit@3, 88.2% recall@3 | Nothing. The central premise was sound |
+| **AS-01** | Semantic retrieval bridges the symptom-to-title gap | **Held, strongly.** 95.2% any-hit@3 on ranking alone, 92.7% at the shipped 0.40 floor; 88.2% recall@3 | Nothing. The central premise was sound |
 | **AS-02** | Classifier confidence is calibrated enough to threshold on | **Failed.** 99 of 100 predictions in one band; ECE straddles the 5-point condition across runs (3.2 / 6.0 / 5.2 / 2.5%) | The largest revision. Forced R-1 and R-2 |
 | **AS-03** | The hidden set resembles validation more than development | **Cannot be tested**, but the two splits now differ on **five** measured dimensions, so the assumption was worth making explicit | Shaped the fairness method (R-4) |
 | **AS-04** | Free-tier limits permit 120 tickets in one unattended run | **Held, but only just** — and only after two pacing defects were fixed. The undocumented daily cap nearly invalidated it | Two days of debugging. Forced R-7 |
-| **AS-05** | Whole-document chunking suits a 29-article corpus | **Held.** 95.2% against 92.7% for section-splitting, and simpler | Nothing. Measured rather than assumed |
+| **AS-05** | Whole-document chunking suits a 29-article corpus | **Held.** 95.2% against 92.7% for section-splitting, both at floor 0.00, and simpler | Nothing. Measured rather than assumed |
 | **AS-06** | The marker vocabulary achieves high recall at low false-positive cost | **Partly failed.** The automatically derived version was overfitted to templates; the curated version missed two useless terms that cost 11 false escalations | Found late, on the gate results. Cost ~1.5 points of FCR until fixed |
 | **AS-07** | The grader's machine has network access to Groq or OpenRouter | **Untested until the rehearsal.** Dual-provider support added defensively | Removed a gate risk before it materialised |
 

@@ -1,7 +1,7 @@
 # An intelligent support system for CloudServe Solutions
 
-**Kshitiz Bhargava**
-Forward Deployed AI Engineering — Capstone Report
+**Kshitiz Bhargava**  
+Forward Deployed AI Engineering — Capstone Report  
 September 2026
 
 ---
@@ -30,7 +30,9 @@ an honest statement of what it was uncertain about.
 and `-2/` — and both are committed, because on one measure they disagree about
 whether a target is met. Headline figures are run 2, the later and the one with
 correct guardrail accounting; run 1 is shown beside them as the honest measure of
-run-to-run variance.
+run-to-run variance (Table 1).
+
+*Table 1 — Headline results against the brief's targets: validation set, 80 tickets, two independent cold runs.*
 
 | | Target | Run 2 | Run 1 | |
 |---|---|---|---|---|
@@ -166,8 +168,12 @@ the central finding:
 > phrases in a keyword search."
 
 That sentence is the design brief. Semantic retrieval is exactly the path between
-those two phrases, and it works: **95.2% any-hit@3** across the 357 groundable
-development tickets (Table 1).
+those two phrases, and it works. On ranking alone, an expected document is in the
+top three for **95.2%** of the 357 groundable development tickets. At the
+relevance floor of **0.40** that actually ships — which exists so the system
+returns *nothing* rather than something irrelevant — it is **92.7%**. The second
+number is the one the built system delivers
+(`evaluation/results/2026-09-04-retrieval-tuning.txt`).
 
 ### 3.2 Half of all escalations were already answered — and the Head of Support cannot see it
 
@@ -183,7 +189,12 @@ guessing."*
 **The cost of that blind spot is the largest number in this report.** Escalated
 tickets are 56.2% of volume but consume **96.8% of all agent minutes**, and
 **46.2% of every hour worked went to escalations the documentation already
-answered** (Figure 1).
+answered** (Figure 1). The split is computed by `scripts/analyse_agent_time.py`,
+which draws the figure from the same pass (`evaluation/results/2026-09-14-agent-time.txt`).
+
+![Figure 1 — share of tickets and share of agent minutes by outcome](figures/figure1_agent_time.svg)
+
+*Figure 1 — Where agent time goes, development set (500 tickets, 210,849 agent minutes). Share of tickets: escalated and answerable from the documentation 27.6%, escalated and not answerable 28.6%, resolved at first contact 43.8%. Share of agent minutes: escalated and answerable 46.2%, escalated and not answerable 50.6%, resolved at first contact 3.2%. Source fields: `history.escalated`, `history.resolution_time_minutes`, `labels.answerable_from_docs`.*
 
 ### 3.3 Enterprise customers are the worst served, and everyone believes the opposite
 
@@ -191,7 +202,9 @@ Marcus feared enterprise customers would notice if they got worse service. Ravi,
 a business-plan customer, believed an enterprise colleague got replies in about
 an hour and worried the gap would widen.
 
-Both are wrong, in the same direction:
+Both are wrong, in the same direction (Table 2):
+
+*Table 2 — Median resolution time and first-contact resolution by customer tier, development set.*
 
 | Tier | Median resolution | First contact resolution |
 |---|---|---|
@@ -228,7 +241,9 @@ Twenty-five functional and eight non-functional requirements, each traced to a
 numbered discovery finding. PRD v1.0 was written on day one, **before any code**,
 specifically so the compulsory revision in §9 would have a genuine trigger.
 
-Selected requirements and their evidence:
+Table 3 shows selected requirements and the evidence each traces to.
+
+*Table 3 — Selected functional requirements and their discovery evidence.*
 
 | ID | Requirement | Evidence |
 |---|---|---|
@@ -263,7 +278,9 @@ Auto-responding requires **four independent conditions to agree**: a confidence
 margin above threshold, an intent not on the deny-list, a retrieved passage above
 the relevance floor, and grounding validated. Any single failure escalates.
 
-Measured over 200 development tickets, the conjuncts are **not** equal:
+Measured over 200 development tickets, the conjuncts are **not** equal (Table 4):
+
+*Table 4 — Share of escalations in which each routing condition failed, 200 development tickets. A ticket can fail more than one condition, so the shares sum past 100%.*
 
 | Conjunct | Share of escalations |
 |---|---|
@@ -298,19 +315,23 @@ feature.
 
 ### 5.4 Alternatives considered
 
+Table 5 lists the alternatives considered and why each was rejected.
+
+*Table 5 — Alternatives considered, and why each was not shipped.*
+
 | Alternative | Why not |
 |---|---|
 | k-NN classifier over ticket embeddings (99.4%) | Memorises templates. Would score brilliantly on the hidden set and generalise to nothing |
 | Automatically derived safety vocabulary (90.8% held-out vs 73.6%) | Contains `only`, `call`, `nobody` — generic words correlating with deny-list templates. A security control that fires on the word "only" is not defensible |
 | Whole-corpus prompting (the corpus is only ~8k tokens) | Would satisfy no retrieval criterion and produce no resolvable citations |
-| Section-level chunking | Measured: 92.7% any-hit against 95.2% for whole documents, and more complex |
+| Section-level chunking | Measured: 92.7% any-hit against 95.2% for whole documents — both at floor 0.00, so the comparison is like for like — and more complex |
 
 ---
 
 ## 6. Implementation
 
-475 tests, 91% statement-and-branch coverage over `src/` and `evaluation/`
-(91% over `src/` alone), one command (`pytest`), green on a clean checkout
+513 tests, 92% statement-and-branch coverage (91.7%) over `src/` and `evaluation/`
+(92% over `src/` alone), one command (`pytest`), green on a clean checkout
 without an API key.
 
 **What was difficult** — in each case the defect was invisible until the whole
@@ -348,7 +369,16 @@ the report builder is already pure and should be separated properly.
 Development set (500) for all development and threshold derivation. Validation
 (80) held back, following the Project Brief's instruction rather than the Dataset
 Guide's looser wording — a conflict named here because the two documents
-disagree. **The hidden set has not been run.**
+disagree.
+
+**No hidden set was supplied, so none was run.** The pack's `05_Datasets/` holds
+the development, validation, documentation and ground-truth data files, together
+with the dataset guide and the interview transcripts; the hidden
+set is processed by the assessors on their own machine. The Submission Guide's
+checklist asks that the hidden set be used once and that the report say when. The
+honest answer is that it could not be used here. The closest held-back split was
+validation, and it was used six times rather than once — every use is listed
+below.
 
 **Six runs touched the validation set, and all six are listed** in
 [`docs/validation-runs.md`](../validation-runs.md) with their run_id, timestamp,
@@ -371,7 +401,9 @@ produced under.
 
 ### 7.2 Results
 
-*Table 1 — validation set, 80 tickets. Two independent cold runs, both committed:
+Table 6 gives the full results for both runs.
+
+*Table 6 — validation set, 80 tickets. Two independent cold runs, both committed:
 `evaluation/results/2026-09-10-gate-run-2/` (headline) and `-1/`. Neither
 degraded: `degraded: false`, `classification_fallback_rate: 0.0`,
 `cache_replay: false`, no quota exhaustion.*
@@ -426,7 +458,9 @@ an undisclosed cache hit is how a throughput claim went wrong once already (D-30
 ### 7.3 Calibration — a failed condition, reported as one
 
 The governance condition is stated confidence within five points of observed
-accuracy. Four cold runs of 100 tickets were made during development:
+accuracy. Four cold runs of 100 tickets were made during development (Table 7):
+
+*Table 7 — Classification accuracy and expected calibration error (ECE) across four 100-ticket cold runs.*
 
 | Run | Accuracy | ECE | Within 5 points? | Artifact |
 |---|---|---|---|---|
@@ -543,7 +577,9 @@ Corrected, the run blocks 4 of 80.
 ### 8.3 Fairness
 
 Measuring segments against each other would be wrong here. The **labels
-themselves** already vary by more than the five-point condition:
+themselves** already vary by more than the five-point condition (Table 8):
+
+*Table 8 — Spread of the label baseline (the expected auto-respond rate) across segments, by split.*
 
 | Segment | Dev label spread | Validation label spread |
 |---|---|---|
@@ -559,8 +595,9 @@ outcomes were supplied, so it was suppressed on exactly the delta rows most
 likely to be quoted (`enterprise`, n=8; `latin_america`, n=7). It is now
 unconditional.
 
-**The result: the condition is exceeded, and no single segment survives testing.**
-`evaluation/results/2026-09-10-fairness-validation.txt` (run 2):
+**The result: the condition is exceeded, and no single segment survives testing** (Table 9).
+
+*Table 9 — System auto-respond rate against each segment's label baseline, validation run 2, with the paired exact (McNemar) p-value and its Holm adjustment across all eleven segments tested. Source: `evaluation/results/2026-09-10-fairness-validation.txt`.*
 
 | Segment | n | Baseline | System | Delta | Discordant | p | Holm |
 |---|---|---|---|---|---|---|---|
@@ -632,6 +669,46 @@ Two tests: every ticket escalates, and **zero model calls are made**. It was mov
 earlier in the pipeline during the build after a test showed classification had
 already spent a call before the switch was checked.
 
+### 8.5 Risk register
+
+The full register — eleven risks, each with likelihood, impact, the mitigation
+built into the design, and a named owner — is in the Governance Framework
+(Appendix F, §2). Table 10 summarises the seven rated severe or worse, plus R-06,
+which is rated only moderate in impact but High in likelihood: the provider
+failed repeatedly during the build. The common thread is that every
+mitigation is a property of the pipeline rather than a policy someone has to
+remember.
+
+*Table 10 — The seven risks rated severe or worse, and R-06, rated High likelihood, with the mitigation built into the design. Full register: Governance Framework §2.*
+
+| ID | Risk | Likelihood / impact | Mitigation in the design |
+|---|---|---|---|
+| R-01 | Answers confidently and incorrectly | High / severe | Four conditions must all agree before sending; otherwise escalate with the draft and what was uncertain |
+| R-02 | Private data in an outbound response | Medium / unacceptable at any rate | Guardrail blocks and escalates; a response is never redacted and sent |
+| R-03 | Customer input treated as an instruction | Medium / severe | Ticket text travels as a separate message, never inside the instructions; an integrity guardrail checks independently |
+| R-04 | Some customer groups served worse | High / severe at renewal | Every segment measured against its own split's label baseline; the audit refuses degraded runs |
+| R-06 | Model provider unavailable | High / moderate if handled | Degrades to retrieval-only and completes; the report is flagged and business rates withheld |
+| R-09 | Security or compliance ticket auto-answered | Medium / severe, non-recoverable | Three independent layers plus grounding (§8.2) |
+| R-10 | A broken run mistaken for a cautious one | Medium / severe — corrupts the evaluation | Degraded flag and a distribution-collapse alarm, both checked before any rate is published |
+| R-11 | Agents stop checking the system's drafts | Medium / severe, slow to notice | Automated replies say so; escalations state what the system was unsure about |
+
+### 8.6 Incident procedure
+
+The procedure is written so that someone unfamiliar with the system could follow
+it at two in the morning. Table 11 gives the six steps; owners and time limits for
+each are in the Governance Framework (Appendix F, §5).
+
+*Table 11 — The six-step incident procedure.*
+
+| Step | What happens |
+|---|---|
+| 1. Detect | A customer reports a wrong or harmful reply, a private-data or instruction-integrity block appears, escalation jumps above 60% in a run, or a run reports degraded unexpectedly |
+| 2. Contain | `touch storage/KILL` — every later ticket escalates with no model call, in under a minute, with no deployment |
+| 3. Assess | Look the ticket up in the decision log: intent, alternatives, passages and scores, thresholds, every guardrail result and the prompt version |
+| 4. Notify | Contact an affected customer directly; if private data was disclosed, notify the customer and the data owner the same day; if a security or compliance ticket was auto-answered, escalate to the Head of Support immediately |
+| 5. Remediate | Match the cause to the control — the article, the grounding check, or a missing safety marker — re-measure the control that failed, and release the kill switch only once a test reproduces the incident and passes |
+| 6. Review | Record which control should have caught it and why it did not, and add the incident to `docs/DECISIONS.md` within a week |
+
 ---
 
 ## 9. The requirements revision
@@ -684,7 +761,37 @@ after Holm correction nothing survives at 0.05 (`asia_pacific` adjusts from 0.03
 to 0.424). It is a lead to investigate on development data, not a result to
 publish, and §10.2 says what to measure.
 
-A submission that reported only the five targets it met would be a less useful
+**Every target in the brief, in one place.** Table 12 collects them — business,
+technical and governance — with what the system achieved and where it did not.
+Six are met, three are missed, one straddles the run-to-run band, and four could
+not be measured at all with the data supplied. Saying which is which is the point
+of the table: a
+target that was never measurable is a different thing from one that was measured
+and missed, and collapsing the two would flatter this result.
+
+*Table 12 — Every measure in Project Brief §07, and where the built system stands. Business and technical figures are validation run 2 (80 tickets) unless noted.*
+
+| Measure | Baseline | Target | Achieved | |
+|---|---|---|---|---|
+| **Business** | | | | |
+| First contact resolution | 42% | ≥ 60% | 56.3% | ❌ 3.75pt under validation's own label ceiling of 60.0% |
+| Escalation rate | 58% | ≤ 30% | 43.8% | ❌ unreachable without a governance breach (§7.4) |
+| Average time to first reply | 8–12 hrs | under 5 min | ~2 s | ✅ processing latency; the schema has no `replied_at`, so this is not human reply time |
+| Customer satisfaction | 3.2 / 5 | ≥ 4.0 | — | ➖ not measurable: no live customers. A rubric-scored sample is the proposed proxy |
+| Repeat contacts | not measured | halved | — | ➖ not measurable: 2 same-customer, same-intent pairs in 500 tickets |
+| **Technical** | | | | |
+| Intent classification precision | — | ≥ 85% | 85.0% | ✅ 87.5% in run 1; the margin is nil, not comfortable |
+| Citation accuracy | — | ≥ 95% | 100% | ✅ every citation resolves to a retrieved passage; whether each *supports* its sentence needs human review |
+| Response latency, p95 | — | < 3 s | 2.66 s | ⚠️ 3.08s in run 1 — the target sits inside the run-to-run band |
+| Hallucination rate | — | ≤ 5% | — | ➖ not established: the Evaluation Framework's standard is 50 responses and two assessors |
+| Availability | — | ≥ 99.5% | — | ➖ not measured as uptime. A11 is verified instead: the run completes with the provider disconnected |
+| **Governance conditions** | | | | |
+| Private data in outbound responses | — | zero | 0 | ✅ across every run, including the degraded ones |
+| Quality across customer groups | — | within 5pt | −38.1pt | ❌ exceeded; no segment survives correction (§8.3) |
+| Decision logging | — | complete | 80/80 | ✅ reconciles by identity in both directions |
+| Confidence calibration | — | within 5pt | ECE 2.6% | ✅ on the one run with a committed artifact; earlier, unverifiable runs failed (§7.3) |
+
+A submission that reported only the six targets it met would be a less useful
 document than this one.
 
 What I am most confident in is the negative result: **zero deny-listed tickets
@@ -813,9 +920,12 @@ This project was developed with substantial AI assistance, used for writing and
 debugging code, drafting and refining the prompts that run inside the system, and
 structuring documentation.
 
-**Including this report.** §2 and §10.3 — the problem statement and the
-reflection — were drafted with the same assistance as the rest and then edited by
-me. The Project Instructions single those two sections out as where the author's
+**Including this report, and the problem statement wherever it appears.** §2 and
+§10.3 here, §2 of the PRD, and §6 of the Stage 1 workbook were drafted with the
+same assistance as the rest and then edited by me. The Project Instructions list
+the problem statement among the things a model must not produce, which is exactly
+why it is named here rather than left for a reader to infer: the same claim
+appears in three documents, and all three were drafted the same way. The Project Instructions single those two sections out as where the author's
 judgement is assessed, so it would be worse than useless to leave that
 unmentioned. What is mine in them is the judgement they describe: which problem
 to solve, which target to miss deliberately, which findings to retract, and which
@@ -823,7 +933,7 @@ of my own mistakes were worth writing down. The sentences were drafted; the call
 were made at the time, and the decision log records each one on the day it
 happened.
 
-An independent validator agent reviewed every phase — eleven reviews, six
+An independent validator agent reviewed every phase — twelve reviews, seven
 BLOCKED, all recorded in `docs/VALIDATOR.md` with the findings that produced each
 verdict. I did not once successfully defend a figure it challenged.
 
@@ -851,11 +961,11 @@ reported. Where a claim could not be verified it is labelled as unverified.
 ## Appendices
 
 - **A** — Stage 1 Discovery Workbook
-- **B** — Stage 2 PRD v1.0 and v1.1
+- **B** — Stage 2 workbook: PRD v1.0 (`docs/PRD-v1.md`). Its revision to v1.1 on 2026-09-08 is recorded change by change in the Stage 5 log (Appendix E); no separate v1.1 document was kept
 - **C** — Stage 3 Prompt Library and traceability matrix
 - **D** — Stage 4 Sprint Plan with estimates against actuals
 - **E** — Stage 5 Revision Log
 - **F** — Governance Framework (risk register, fairness audit, incident procedure)
-- **G** — Decision record: 47 decisions with evidence (`docs/DECISIONS.md`)
+- **G** — Decision record: 48 decisions with evidence (`docs/DECISIONS.md`)
 - **H** — Evaluation artifacts (`evaluation/results/`), each with a provenance banner
-- **I** — Validator charter and eleven review verdicts (`docs/VALIDATOR.md`)
+- **I** — Validator charter and twelve review verdicts (`docs/VALIDATOR.md`)
