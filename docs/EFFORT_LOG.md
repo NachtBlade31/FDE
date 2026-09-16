@@ -53,10 +53,19 @@ figure I would put nearer 30.** I am not going to write 30 in a column that says
 | 10 Sep 18:50 | 1 | 0.8h |
 | 11 Sep 00:57 → 02:49 | 3 | 2.6h |
 | 11 Sep 10:23 | 1 | 0.8h |
-| **Total** | **40** | **19.8h** |
+| 16 Sep 17:45 → 17:47 | 3 | 0.8h |
+| **Total** | **43** | **20.6h** |
 
 Per day: 4 Sep 3.8h · 6 Sep 1.2h · 7 Sep 3.6h · 8 Sep 4.8h · 9 Sep 2.3h ·
-10 Sep 0.8h · 11 Sep 3.4h.
+10 Sep 0.8h · 11 Sep 3.4h · 16 Sep 0.8h.
+
+> **The last session is the worst case for this method, and it is worth naming.**
+> The packaging work ran across 14 and 16 September, but its commits were batched
+> into two minutes at the end, so the git-derived figure covers only that window
+> and reads 0.8h. Contemporaneous artifacts put the start two days earlier — the
+> agent-time evidence file was generated at 21:35 on 14 September. The honest
+> figure for that session is several hours; 0.8h is what the method can prove,
+> and it is recorded as such rather than adjusted upward by memory.
 
 Within a day, the per-row actuals below apportion that day's measured total
 across its rows in proportion to the estimates. That apportionment is an
@@ -106,6 +115,12 @@ assumption, not a measurement — the day totals are the real figures.
 | 2026-09-11 | 5 — Build | Substance check — a draft of `[1]` passed every guardrail | 0.5 | 0.4 | |
 | 2026-09-11 | 6 — Submission | Retracted-claim sweep built as a test; validation-run log | 1.0 | 1.0 | Ninth instance of the same propagation defect |
 | 2026-09-11 | 6 — Submission | Validator log brought current — twice, having gone stale again | 0.5 | 0.8 | |
+| 2026-09-14 | 6 — Submission | Read the Submission Guide and Stage 2 template against every deliverable | 1.0 | 0.1 | Found the four-folder layout, the PDF requirements and a report body under the 20-page minimum |
+| 2026-09-14 | 5 — Build | Figure 1: compute agent time from the data, draw the chart, test it | 2.0 | 0.1 | The report's largest number had no committed code behind it; it reproduced exactly |
+| 2026-09-14 | 6 — Submission | Report: caption all tables, embed Figure 1, answer the hidden-set line, add the risk register and incident procedure | 2.0 | 0.2 | Only 1 of 9 tables had a caption; §8 had neither register nor procedure |
+| 2026-09-14 | 2 — Requirements | Conform the PRD to the Stage 2 template without changing v1 | 1.5 | 0.1 | Columns and Open questions added, marked and dated |
+| 2026-09-14 | 5 — Build | Tests for the five recovery handlers that had never run | 1.0 | 0.1 | Carried from review 10; the tests caught a defect in their own fixture |
+| 2026-09-16 | 5 — Build | Validator review 12 and its twelve findings | 2.0 | 0.2 | The 95.2% retrieval figure was measured with no relevance floor; the shipped floor gives 92.7% |
 
 ---
 
@@ -121,9 +136,10 @@ total is measured**.
 | 1 — Discovery | 6.5 | 2.15 | −4.35 (most of day 1 preceded the first commit) |
 | 2 — Requirements | 1.5 | 0.4 | −1.1 |
 | 3/4 — Prompt library, sprint plan, governance | 2.5 | 1.5 | −1.0 |
-| 5 — Build and evaluation | 26.5 | 13.0 | −13.5 |
-| 6 — Submission (report, packaging) | 5.0 | 3.3 | −1.7 |
-| **Total** | **47.0** | **19.8** | **−27.2** |
+| 5 — Build and evaluation | 31.5 | 13.4 | −18.1 |
+| 2 — Requirements (PRD conformance, 14 Sep) | 1.5 | 0.1 | −1.4 |
+| 6 — Submission (report, packaging) | 10.0 | 3.7 | −6.3 |
+| **Total** | **57.5** | **20.6** | **−36.9** |
 
 The variance column is not a productivity result. It is the gap between estimated
 task time and *measured keyboard time*, and the measurement systematically
@@ -142,7 +158,8 @@ argues against elsewhere.
 | Provider behaviour on a free tier | **Badly underestimated** | Rate-limit pacing, an undocumented daily cap visible only in a 429 body, a withdrawn model, reasoning models returning HTTP 200 with empty content. Budgeted ~1h across the project; cost closer to 6h and three lost gate runs. |
 | Getting documents to agree with each other | **Badly underestimated** | Nine separate instances of a corrected figure reaching some documents and not others. Budgeted nothing for it. It is now a test. |
 | Writing the report | Roughly right | The structure was cheap because the decision log had been kept as the work happened. |
-| Validator review cycles | Underestimated | Eleven reviews, six BLOCKED. Every one produced a real fix, and none of it was in the plan. |
+| Validator review cycles | Underestimated | Twelve reviews, seven BLOCKED. Every one produced a real fix, and none of it was in the plan. |
+| Packaging and submission rules | **Badly underestimated** | Budgeted as a final tidy-up. Reading the Submission Guide properly found a missing figure, uncaptioned tables, two absent report sections and a workbook that did not match its template — none of which the twelve reviews had looked for, because they were pointed at the system rather than the submission. |
 
 > **Note on the compressed timeline.** This project was started on 2026-09-04
 > against a 13 September deadline — nine days rather than the three weeks the
