@@ -348,7 +348,8 @@ flatter this result."
 
 > **[SCREEN — §8.5 risk register, then `docs/VALIDATOR.md`]**
 
-"Governance quickly. Eleven risks in a register, with owners and mitigations. An
+"Governance quickly. Eight risks in the register on screen, eleven in the full
+register with owners in the Governance Framework. An
 incident procedure — six steps, starting with the kill switch. Every decision
 logged against the ticket that produced it. Three layers on the deny list plus
 grounding, and fifty-six of eighty-seven security-and-compliance tickets are
@@ -410,10 +411,11 @@ probably the cheapest win in the whole report.
 
 If I had to leave you with one thing, it's this. The brief asked for a chatbot,
 and a chatbot would have demoed beautifully and been wrong. What the data asked
-for was a system that knows when to stop. Sixty-four per cent of tickets answered
-automatically, thirty-six per cent handed to a person with the answer already
-attached, zero security tickets auto-answered in any run I've ever made, and
-every one of those decisions written down with the ticket that produced it.
+for was a system that knows when to stop. On the held-back set: fifty-six per cent
+of tickets answered automatically, forty-four per cent handed to a person with the
+answer already attached, zero security tickets auto-answered in any run I've ever
+made, and every one of those decisions written down with the ticket that produced
+it.
 
 Three targets missed — and I'd rather show you the three and explain them than
 show you a number I can't defend.
@@ -553,7 +555,11 @@ hypothesis is undetectable at this sample size (+5.3pt, p = 1.00, n=19).
 
 - **515 tests passing**; coverage 91.67% combined, 92.29% on `src/`
 - CI green; the clean-checkout rehearsal (A1) passes
-- **12 of 12 acceptance criteria** met, including A9 — the unattended full-set run
+- Acceptance criteria: **A1** (clean-checkout rehearsal, D-43), **A5** (determinism
+  via the content-addressed cache, D-28), **A9** (the unattended full-set run, both
+  gate runs) and **A11** (per-node containment) each have named committed evidence.
+  Every criterion is traced to a requirement in `docs/PRD-v1.md`; there is no
+  single artifact asserting a status for all twelve, so do not claim one on camera
 - 48 logged decisions, 12 validator reviews (7 blocked), 11 registered risks
 - 20.6 hours measured from commit timestamps — **explicitly a floor**, since
   batched commits under-count sessions that ran across days
