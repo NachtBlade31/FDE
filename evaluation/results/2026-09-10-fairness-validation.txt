@@ -1,8 +1,8 @@
 ==============================================================================
 PROVENANCE — what this artifact was produced from
 ==============================================================================
-  generated            : 2026-09-10T20:11:00
-  commit               : 79dd421
+  generated            : 2026-09-16T17:46:40
+  commit               : f0634ac
   tickets              : ..\FDE_Capstone_Complete-20260821T084330Z-1-001\FDE_Capstone_Complete\Capstone_Pack\05_Datasets\validation_tickets.json
   outcomes             : evaluation\results\2026-09-10-gate-run-2\outcomes.json
   run_id               : 20260910T142951-97d609
