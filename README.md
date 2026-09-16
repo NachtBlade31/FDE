@@ -208,13 +208,30 @@ escalates with its retrieved context attached, and the report is marked
 `DEGRADED` with the business rates withheld rather than published — a broken run
 and a very conservative one otherwise look identical in the output.
 
-## 7. Start the API
+## 7. Run the demonstration
 
-> Available from Day 6.
+The four things the Submission Guide asks to see running — a ticket answered, a
+ticket escalated, a guardrail refusing to release a draft, and the kill switch —
+run on demand, in a fixed order, against the real model:
 
 ```bash
-python -m src.api
+python scripts/demo.py                      # every scenario
+python scripts/demo.py --only blocked       # the guardrail block
+python scripts/demo.py --only killswitch    # stop answering, with zero model calls
 ```
+
+`--only blocked` replays a real ticket from the held-back validation split, so it
+needs the dataset pack beside the repository. Without it the scenario says so and
+points at the committed evidence instead, rather than inventing a ticket: a
+guardrail block needs a draft the model actually wrote and the validator actually
+refused.
+
+**There is no HTTP API, and that is deliberate.** An earlier version of this
+README promised `python -m src.api` "from Day 6". It was never built, so anyone
+following these instructions literally hit `No module named src.api` — which is
+exactly what acceptance criterion A1 checks for. The system is file-driven
+because A9 asks for one command, a file in and a file out, and a live ticketing
+integration is explicitly out of scope (PRD WN-05).
 
 ---
 

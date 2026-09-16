@@ -175,3 +175,57 @@ def test_the_latency_target_is_never_reported_as_settled():
             f"{path.name} settles the latency target; it straddles the run-to-run "
             "band and both runs are committed."
         )
+
+
+# --- the README's commands must exist ------------------------------------------
+#
+# The README documented `python -m src.api` "from Day 6". It was never built, so
+# anyone following the instructions literally hit `No module named src.api` —
+# and acceptance criterion A1 is judged by following the README literally. It
+# survived twelve validator reviews because every one of them read the code and
+# the claims, and none of them ran the setup instructions as written.
+
+STDLIB_MODULES = {"venv", "pip"}
+
+
+def _documented_commands() -> list[str]:
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+    inside, commands = False, []
+    for line in readme.splitlines():
+        if line.strip().startswith("```"):
+            inside = line.strip().startswith("```bash")
+            continue
+        if inside and line.strip().startswith("python "):
+            commands.append(line.strip())
+    return commands
+
+
+def test_every_python_module_the_readme_documents_exists():
+    missing = []
+    for command in _documented_commands():
+        parts = command.split()
+        if "-m" not in parts:
+            continue
+        module = parts[parts.index("-m") + 1]
+        if module in STDLIB_MODULES:
+            continue
+        path = REPO / Path(*module.split(".")).with_suffix(".py")
+        package = REPO / Path(*module.split(".")) / "__main__.py"
+        if not path.exists() and not package.exists():
+            missing.append(f"{command!r} -> no {path.relative_to(REPO).as_posix()}")
+
+    assert not missing, (
+        "The README documents commands that cannot run:\n  " + "\n  ".join(missing)
+    )
+
+
+def test_every_script_the_readme_documents_exists():
+    missing = []
+    for command in _documented_commands():
+        for token in command.split():
+            if token.endswith(".py") and not (REPO / token).exists():
+                missing.append(f"{command!r} -> no {token}")
+
+    assert not missing, (
+        "The README documents scripts that do not exist:\n  " + "\n  ".join(missing)
+    )
