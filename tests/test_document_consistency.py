@@ -41,6 +41,7 @@ DELIVERABLES = [
     REPO / "docs" / "workbooks" / "Stage_3_Prompt_Library.md",
     REPO / "docs" / "workbooks" / "Stage_4_Sprint_Plan.md",
     REPO / "README.md",
+    REPO / "docs" / "VIDEO_SCRIPT.md",
 ]
 
 # The decision log and validator log deliberately preserve what was believed at
