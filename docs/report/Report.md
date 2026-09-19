@@ -110,7 +110,7 @@ second, rather than the other way round.
 56.2% of volume but eat **96.8% of all agent minutes**. Worse, **46.2% of every
 hour CloudServe's agents work goes to escalations the documentation already
 answers.** Nearly half the support function's time is spent rediscovering things
-that were already written down. Marcus owns these numbers and has never seen that
+that were already written down. Marcus, the Head of Support, owns these numbers and has never seen that
 breakdown; when I asked him for one he said he would be guessing. He was not being
 evasive. The composition of the escalation rate is simply not something his
 reporting shows him.
@@ -241,7 +241,7 @@ Twenty-five functional and eight non-functional requirements, each traced to a
 numbered discovery finding. PRD v1.0 was written on day one, **before any code**,
 specifically so the compulsory revision in §9 would have a genuine trigger.
 
-Table 3 shows selected requirements and the evidence each traces to.
+Table 3 shows selected requirements and the evidence each traces to. The Build Specification's twelve pass/fail acceptance criteria are referred to as A1–A12 throughout; A9, the one the assessment turns on, is a single documented command that processes a whole ticket file unattended.
 
 *Table 3 — Selected functional requirements and their discovery evidence.*
 
@@ -427,7 +427,7 @@ degraded: `degraded: false`, `classification_fallback_rate: 0.0`,
 blocked by a guardrail** and 31 escalated before a draft existed.*
 
 **Why two runs.** The first was made before a defect in guardrail accounting was
-found (§8.2, D-47), so its `blocked_by_guardrails` count is wrong — it reported 0
+found (§8.2; decision D-47, Appendix G), so its `blocked_by_guardrails` count is wrong — it reported 0
 where the true figure is 4. Its *rates* are unaffected by that defect, so rather
 than discard it I kept it as a second observation. That turned out to matter: the
 two runs disagree about the latency target.
@@ -444,7 +444,7 @@ run 2 and missed in run 1 rather than picking one.
 **Run-to-run variance, measured rather than asserted.** Across the two runs: FCR
 53.8–56.3%, accuracy 85.0–87.5%, net p95 2.66–3.08s, auto-answered 43–45 of 80.
 That is a ±1.25 point band on FCR and ±1.25 on accuracy, consistent with the
-±1.5 points established on development in D-28. **No single-run difference
+±1.5 points established on development (decision D-28, Appendix G). **No single-run difference
 smaller than about 2.5 points should be read as a result**, which is the standard
 this report tries to hold itself to elsewhere.
 
@@ -455,7 +455,7 @@ provider call, 76,224 tokens with 12 served from cache. Cold-equivalent that is
 **1.8% pessimistic**, which is the direction it is designed to err in but a much
 narrower margin than it looks. The 12 cache hits are within-run duplicates — the
 validation split contains repeated ticket bodies — and are disclosed here because
-an undisclosed cache hit is how a throughput claim went wrong once already (D-30).
+an undisclosed cache hit is how a throughput claim went wrong once already (decision D-30, Appendix G).
 
 ### 7.3 Calibration — a failed condition, reported as one
 
@@ -471,7 +471,7 @@ accuracy. Four cold runs of 100 tickets were made during development (Table 7):
 
 **Only the last run has a committed artifact**, and its figures are 90.0% / 2.6%
 — not the 2.5% an earlier draft of this table reported for it. Runs 1–3 were made
-before the evaluation scripts wrote provenance-stamped output files (D-37), so
+before the evaluation scripts wrote provenance-stamped output files (decision D-37, Appendix G), so
 their numbers survive only as notes and **cannot be checked**. They are shown
 because the pattern across them is what drove a design decision, and suppressed
 figures would misrepresent how that decision was reached — but a reader should
@@ -513,7 +513,7 @@ That promise was not kept until 10 September. The reporter printed
 `blocked_by_guardrails: 0` for a run in which four drafts were generated and
 withheld, because an ungrounded draft short-circuited past the validator entirely
 — so the grounding guardrail had a branch no production path could reach, and its
-activation count was structurally zero rather than observed to be zero. D-47.
+activation count was structurally zero rather than observed to be zero (decision D-47, Appendix G).
 
 ### 7.5 The limits of what was measured
 
@@ -569,7 +569,7 @@ across every run including the degraded ones.**
 **One guardrail was, however, structurally unable to fire.** The grounding check
 withholds a draft whose citations do not resolve. The pipeline short-circuited
 such drafts before the validator ran, so that branch was unreachable and the
-report said zero blocks where four had occurred (D-47). The deny-list and
+report said zero blocks where four had occurred (decision D-47, Appendix G). The deny-list and
 tone-and-scope guardrails were unaffected and the deny-list condition held
 throughout — but the episode is worth stating plainly here rather than only in the
 decision log, because **"this control never needed to fire" and "this control
@@ -717,7 +717,7 @@ each are in the Governance Framework (Appendix F, §5).
 
 Eight changes, each with a dated trigger. The largest:
 
-**AS-02 failed.** PRD v1 assumed classifier confidence was calibrated enough to
+**Assumption AS-02 in the PRD failed.** PRD v1 assumed classifier confidence was calibrated enough to
 threshold on. Measurement put **99 of 100 predictions in a single band** — there
 is no curve to pick a point on. The routing basis moved to the *margin* between
 the top intent and the best alternative, which has a real precision/coverage
@@ -962,12 +962,17 @@ reported. Where a claim could not be verified it is labelled as unverified.
 
 ## Appendices
 
-- **A** — Stage 1 Discovery Workbook
-- **B** — Stage 2 workbook: PRD v1.0 (`docs/PRD-v1.md`). Its revision to v1.1 on 2026-09-08 is recorded change by change in the Stage 5 log (Appendix E); no separate v1.1 document was kept
-- **C** — Stage 3 Prompt Library and traceability matrix
-- **D** — Stage 4 Sprint Plan with estimates against actuals
-- **E** — Stage 5 Revision Log
-- **F** — Governance Framework (risk register, fairness audit, incident procedure)
-- **G** — Decision record: 48 decisions with evidence (`docs/DECISIONS.md`)
-- **H** — Evaluation artifacts (`evaluation/results/`), each with a provenance banner
-- **I** — Validator charter and twelve review verdicts (`docs/VALIDATOR.md`)
+The appendices are separate documents in the submission archive. The workbooks
+are PDFs in `03_Workbooks/`; the rest are in the repository, `04_Source_Code/`, and
+every file path in this report is relative to that folder.
+
+- **A** — Stage 1 Discovery Workbook: `03_Workbooks/Stage_1_Discovery_Workbook.pdf`
+- **B** — Stage 2 workbook, PRD v1.0: `03_Workbooks/Stage_2_Product_Requirements_Document.pdf`. Its revision to v1.1 on 2026-09-08 is recorded change by change in the Stage 5 log (Appendix E); no separate v1.1 document was kept
+- **C** — Stage 3 Prompt Library and traceability matrix: `03_Workbooks/Stage_3_Prompt_Library.pdf`
+- **D** — Stage 4 Sprint Plan: `03_Workbooks/Stage_4_Sprint_Plan.pdf`
+- **E** — Stage 5 PRD Revision Log: `03_Workbooks/Stage_5_PRD_Revision_Log.pdf`
+- **F** — Governance Framework (decision logging, risk register, fairness audit, guardrails, incident response): `03_Workbooks/Supporting_Governance_Framework.pdf`
+- **G** — Decision record, 48 decisions with evidence, cited in the text as D-01 to D-48: `04_Source_Code/docs/DECISIONS.md`
+- **H** — Evaluation artifacts, each with a provenance banner: `04_Source_Code/evaluation/results/`
+- **I** — Validator charter and the twelve review verdicts: `04_Source_Code/docs/VALIDATOR.md`
+- **J** — Effort log, estimated against measured hours: `03_Workbooks/KshitizBhargava_Effort_Log.pdf`
