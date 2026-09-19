@@ -189,16 +189,28 @@ def test_the_latency_target_is_never_reported_as_settled():
 STDLIB_MODULES = {"venv", "pip"}
 
 
+# The README gives Windows steps in PowerShell blocks and the rest in bash
+# blocks; a check that read only one fence type would pass while the other rotted.
+COMMAND_FENCES = ("```bash", "```powershell", "```sh")
+
+
 def _documented_commands() -> list[str]:
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     inside, commands = False, []
     for line in readme.splitlines():
         if line.strip().startswith("```"):
-            inside = line.strip().startswith("```bash")
+            inside = line.strip().startswith(COMMAND_FENCES)
             continue
-        if inside and line.strip().startswith("python "):
+        if inside and line.strip().startswith(("python ", "pytest ")):
             commands.append(line.strip())
     return commands
+
+
+def test_the_readme_documents_commands_at_all():
+    """Guards the two checks below: an empty list would make both pass vacuously."""
+    commands = _documented_commands()
+    assert any("evaluation.harness" in c for c in commands)
+    assert any("scripts/demo.py" in c for c in commands)
 
 
 def test_every_python_module_the_readme_documents_exists():

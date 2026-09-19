@@ -23,7 +23,8 @@ artifacts, and a figure misquoted on camera contradicts the report.
 
 **Two windows.** Left: the demo. Right: the unattended run, started at minute 11
 so it finishes on screen while you talk. Do not run the full 80-ticket validation
-set live — the free tier paces it to about fourteen minutes. Run the committed
+set live — both committed cold runs took about eight minutes (479s and 454s).
+Run the committed
 8-ticket sample live and show the 80-ticket run's committed artifacts.
 
 **If a live call fails on camera, keep it in.** Say what happened, point at the
