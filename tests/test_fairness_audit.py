@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -132,6 +133,11 @@ def _run(tmp_path: Path, *extra: str) -> str:
         errors="replace",
         cwd=REPO,
         timeout=120,
+        # The script prints em dashes. On Windows a piped child writes in the
+        # console code page (cp1252), so decoding as UTF-8 turned every dash
+        # into U+FFFD and three refusal tests failed. This depended on the
+        # machine, not the code: they passed where PYTHONUTF8 happened to be set.
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     assert result.returncode == 0, result.stderr
     return result.stdout
