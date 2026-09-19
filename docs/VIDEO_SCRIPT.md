@@ -23,7 +23,7 @@ artifacts, and a figure misquoted on camera contradicts the report.
 
 **Two windows.** Left: the demo. Right: the unattended run, started at minute 11
 so it finishes on screen while you talk. Do not run the full 80-ticket validation
-set live — both committed cold runs took about eight minutes (479s and 454s).
+set live — both committed cold runs took about 8 minutes (479s and 454s).
 Run the committed
 8-ticket sample live and show the 80-ticket run's committed artifacts.
 
@@ -53,13 +53,11 @@ move on. A recovered failure is better evidence than a clean take.
 
 "Hi, I'm Kshitiz. This is my capstone for the Forward Deployed AI Engineering
 programme — an intelligent support system for CloudServe Solutions, a B2B SaaS
-company with about two thousand business customers.
+company with about 2,000 business customers.
 
-Here's the situation they described. Over five hundred support tickets a week.
-First reply takes eight to twelve hours against a commitment of two. Forty-two
-per cent of tickets get resolved on first contact, so roughly six in ten need a
-second touch. Customer satisfaction is three-point-two out of five and falling.
-Three support agents, one senior engineer, and the senior engineer is spending
+Here's the situation they described. Over 500 support tickets a week.
+First reply takes 8–12 hours against a commitment of 2. 42% of tickets get resolved on first contact, so roughly 6 in 10 need a second touch. Customer satisfaction is 3.2 out of 5 and falling.
+3 support agents, 1 senior engineer, and the senior engineer is spending
 his week on escalations.
 
 And the ask in the brief was a chatbot.
@@ -67,12 +65,12 @@ And the ask in the brief was a chatbot.
 I want to be upfront about the first decision I made, because everything else
 follows from it: **I didn't build a chatbot.** I spent the discovery phase in
 their data first, and the data says they don't have an answer shortage. They have
-a delivery problem. Seventy-one per cent of the tickets coming in are already
-answered somewhere in their own twenty-nine knowledge base articles. The answers
+a delivery problem. 71% of the tickets coming in are already
+answered somewhere in their own 29 knowledge base articles. The answers
 exist. They just aren't reaching the person who needs them.
 
 So what I built is a triage and drafting system. It finds the answer that already
-exists, sends it only when four independent checks agree it should, and otherwise
+exists, sends it only when 4 independent checks agree it should, and otherwise
 hands the ticket to a human with the right article attached and an honest note
 about what it wasn't sure of.
 
@@ -84,40 +82,36 @@ Let me show you why the data pushed me there."
 
 > **[SCREEN — `docs/workbooks/Stage_1_Discovery_Workbook.md`, then Figure 1]**
 
-"Five hundred development tickets, eighty held back for validation, twenty-nine
-knowledge articles. Four things came out of it that changed the design.
+"500 development tickets, 80 held back for validation, 29 knowledge articles. 4 things came out of it that changed the design.
 
-**One — the coverage number.** Seventy-one point four per cent of tickets are
-answerable from the existing corpus. That's the whole business case. If that had
-come back at thirty per cent I'd have built something else, or told them the
+**1 — the coverage number.** 71.4% of tickets are
+answerable from the existing corpus. That's the whole business case. If that had come back at 30% I'd have built something else, or told them the
 project wasn't worth doing.
 
-**Two — why their search doesn't find it.** Their search matches article titles.
+**2 — why their search doesn't find it.** Their search matches article titles.
 Customers write symptoms. Somebody types *'getting 401 after the token refresh'*
 and the article is called *'OAuth 2.0 Authentication Guide'*. There's no shared
 vocabulary, so title search fails, so agents answer from memory, so they escalate
 when they're unsure rather than when the work is genuinely hard.
 
-**Three — and this is the number I'd put in front of their CFO.**"
+**3 — and this is the number I'd put in front of their CFO.**"
 
 > **[SCREEN — Figure 1, the agent-time chart in report §3]**
 
-"Escalations are fifty-six per cent of tickets but **ninety-six point eight per
-cent of agent time**. And forty-nine per cent of everything reaching the senior
+"Escalations are 56% of tickets but **96.8% of agent time**. And 49% of everything reaching the senior
 engineer is a question the documentation already answered. Multiply those
-together: **forty-six per cent of all support effort in this organisation is
+together: **46% of all support effort in this organisation is
 being spent on escalations that never needed to escalate.** That's the money.
 
-**Four — the number that made me miss a target on purpose.** The brief asks for
-escalation at thirty per cent or less. I took the labels and worked out the
+**4 — the number that made me miss a target on purpose.** The brief asks for
+escalation at 30% or less. I took the labels and worked out the
 maximum automation you could defend without auto-answering something you
 shouldn't — security tickets, compliance tickets, anything a guardrail can't
-ground. That ceiling is sixty-five per cent automation, which is an escalation
-**floor** of thirty-four point eight per cent. Thirty per cent is below the
-floor. You cannot get there without auto-answering security and compliance
+ground. That ceiling is 65% automation, which is an escalation
+**floor** of 34.8%. 30% is below the floor. You cannot get there without auto-answering security and compliance
 tickets.
 
-I knew that on day zero, I wrote it down on day zero, and I chose to miss the
+I knew that on day 0, I wrote it down on day 0, and I chose to miss the
 target and explain it rather than hit it and hope nobody asked how. That's
 decision D-03 in the decision log."
 
@@ -128,25 +122,25 @@ decision D-03 in the decision log."
 > **[SCREEN — the pipeline diagram in the HTML version of this script.** Report §5
 > has only the one-line flow `ingest → classify → retrieve → route → generate → validate`.**]**
 
-"Six stages, built on LangGraph. Ingest, classify, retrieve, route, generate,
+"6 stages, built on LangGraph. Ingest, classify, retrieve, route, generate,
 validate.
 
-**Ingest** normalises four channels — email, chat, docs comments, forum — into one
+**Ingest** normalises 4 channels — email, chat, docs comments, forum — into one
 ticket shape. It's forgiving about everything except the ticket ID, because a
 ticket without an identity can't be logged, and an unlogged ticket is a
 governance hole.
 
 **Classify** gives intent, urgency, and a confidence.
 
-**Retrieve** is semantic search over the twenty-nine articles — Chroma with a
+**Retrieve** is semantic search over the 29 articles — Chroma with a
 local embedding model. No PyTorch anywhere in this project, deliberately, so a
-grader doesn't need a two-gigabyte download to run it.
+grader doesn't need a 2 GB download to run it.
 
 **Route** is the part I'd defend hardest. It is not a confidence threshold. It's
-a **conjunction of four independent conditions**, and all four have to agree
+a **conjunction of 4 independent conditions**, and all 4 have to agree
 before anything goes out automatically:
 
-- the classifier's margin between its top two intents clears a derived threshold —
+- the classifier's margin between its top 2 intents clears a derived threshold —
   not a chosen one, derived from a sweep;
 - the ticket is not on the security-and-compliance deny list;
 - the best retrieved passage clears a relevance floor;
@@ -154,16 +148,15 @@ before anything goes out automatically:
 
 Any one of those fails, a human gets the ticket. There's no override.
 
-**Generate** writes the draft. **Validate** is five guardrails, and the
+**Generate** writes the draft. **Validate** is 5 guardrails, and the
 important thing is that the model never emits its own citations. It gets numbered
 passages, it writes `[1]` and `[2]`, and **code** maps those numbers back to real
-chunk IDs. That's why citation accuracy is a hundred per cent — it's structural,
+chunk IDs. That's why citation accuracy is 100% — it's structural,
 not something the model is being trusted to get right.
 
 And one design point that matters more than it sounds: **escalation is an output,
 not a failure.** When this system escalates, that's it working. The report I'd
-give CloudServe isn't 'we automated everything', it's 'we automated the sixty-four
-per cent that's safe, and we made the other thirty-six per cent faster to
+give CloudServe isn't 'we automated everything', it's 'we automated the 64% that's safe, and we made the other 36% faster to
 handle'."
 
 ---
@@ -183,16 +176,16 @@ python scripts/demo.py --only success
 ```
 
 "First, a customer who's started getting 429 errors from the API, says their
-traffic hasn't gone up, and asks whether having three API keys shouldn't raise
+traffic hasn't gone up, and asks whether having 3 API keys shouldn't raise
 their limit." *(let it print)*
 
-"Classified as a rate-limit question, one article retrieved, and every check
-passes — kill switch, the three deny-list layers, grounded, margin. Look at the
+"Classified as a rate-limit question, 1 article retrieved, and every check
+passes — kill switch, the 3 deny-list layers, grounded, margin. Look at the
 reason line: a margin of 0.85 against a threshold of 0.85. It clears by exactly
 nothing, and that's fine — a threshold is a line, not a comfort zone. So it drafts
 an answer, and **that `[1]` resolves to a real article, DOC-API-001** — the model
 cited a position, and the code filled in the document. That's `AUTO_RESPONDED`. A
-customer gets that in about two seconds instead of eight hours."
+customer gets that in about 2 seconds instead of 8 hours."
 
 ### 8:45 — A ticket that must never be answered automatically
 
@@ -217,7 +210,7 @@ python scripts/demo.py --only roadmap
 ```
 
 "Third: a customer asking whether per-project spend caps are on the roadmap.
-Look at the checks: it *did* find two articles that look relevant, and it's
+Look at the checks: it *did* find 2 articles that look relevant, and it's
 confident about what the ticket is. It escalates anyway. Feature requests always
 go to a person, and 'roadmap' is a word that needs human review, because the
 documentation can't promise what the product will do next. **A plausible answer
@@ -254,12 +247,11 @@ different ticket."
 python scripts/demo.py --only blocked
 ```
 
-"This is `VAL-0023` — a real ticket from the held-back validation split, one of
-four that my gate run on the tenth of September blocked. I'm not staging this
+"This is `VAL-0023` — a real ticket from the held-back validation split, 1 of 4 that my gate run on 10 September blocked. I'm not staging this
 with an invented ticket, because a guardrail block needs a draft the model really
 wrote and the validator really refused.
 
-Every routing check passes — six green lines. The model writes an answer. And
+Every routing check passes — 6 green lines. The model writes an answer. And
 then the grounding guardrail refuses to release it: the draft doesn't carry a
 single citation that resolves to a passage that was actually retrieved. Final state:
 `ESCALATED_AFTER_BLOCK`. **The draft is withheld entirely. Not edited, not
@@ -274,12 +266,12 @@ inventing an answer."
 python scripts/demo.py --only killswitch
 ```
 
-"Last one. If this thing misbehaves in production at two in the morning, you do
+"Last one. If this thing misbehaves in production at 2 a.m., you do
 not want the mitigation to be a deployment.
 
 The switch is a single file, `storage/KILL`. Watch what the demo does: the same
 ticket, run twice. Switch off — it's answered. Switch on — it's escalated to a
-person, and look at the counter: **zero model calls** while it's engaged. Then it
+person, and look at the counter: **0 model calls** while it's engaged. Then it
 releases the switch.
 
 No deployment, no restart, no code change. It's checked once per ticket, so it
@@ -297,13 +289,10 @@ escalation rather than being dropped."
 "And over here is the acceptance criterion the whole build was gated on: one
 command, a file of tickets in, results out, no human in the loop.
 
-That's the eight-ticket sample, live. The real evidence is the eighty-ticket
-validation run, which I ran twice, cold, unattended — it's committed under
-`evaluation/results/2026-09-10-gate-run-1` and `-2`, and I'll come to why there
-are two in a moment.
+That's the 8-ticket sample, live. The real evidence is the 80-ticket validation run, which I ran twice, cold, unattended — it's committed under
+`evaluation/results/2026-09-10-gate-run-1` and `-2`, and I'll come to why there are 2 in a moment.
 
-One honest note about the pacing. The free tier gives me eight thousand tokens a
-minute, so the client spends most of a run asleep waiting for its allowance. That
+One honest note about the pacing. The free tier gives me 8,000 tokens a minute, so the client spends most of a run asleep waiting for its allowance. That
 is why this is slower on screen than the latency numbers I'm about to quote — I
 measure processing time net of rate-limit waiting, and I report the raw number
 too."
@@ -314,61 +303,47 @@ too."
 
 > **[SCREEN — Table 1 in `docs/report/Report.md`, then Table 12]**
 
-"Eighty tickets, unattended, no degradation. Both cold runs are committed,
+"80 tickets, unattended, no degradation. Both cold runs are committed,
 because on one measure they disagree.
 
-**What's met.** Classification accuracy eighty-five per cent against a target of
-eighty-five — met in both runs, but let me be straight with you: run two clears
-it by zero point zero points. That's a pass, not a margin. Citation accuracy a
-hundred per cent. The decision log reconciles eighty out of eighty, by identity,
-in both directions. Calibration inside five points — expected calibration error
-of two point six, though that one comes from the hundred-ticket classifier run,
+**What's met.** Classification accuracy 85.0% against a target of 85% — met in both runs, but let me be straight with you: run 2 clears it by 0.0 points. That's a pass, not a margin. Citation accuracy 100%. The decision log reconciles 80 out of 80, by identity,
+in both directions. Calibration inside 5 points — expected calibration error of 2.6%, though that one comes from the 100-ticket classifier run,
 not from this one. And the condition I care
-about most — **zero deny-listed tickets auto-answered, at every threshold I
+about most — **0 deny-listed tickets auto-answered, at every threshold I
 tested, across every run, including the degraded ones.**
 
-**What straddles.** Latency, p95, target under three seconds. Run two: two point
-six six. Run one: three point zero eight. The target falls *between my own two
-runs*. I'm not going to report only the one that passes. The honest statement is
+**What straddles.** Latency, p95, target under 3 seconds. Run 2: 2.66s. Run 1: 3.08s. The target falls *between my own 2 runs*. I'm not going to report only the one that passes. The honest statement is
 that this system is *at* its latency budget, not comfortably inside it.
 
-**What's missed — three things, and I'll take each.**
+**What's missed — 3 things, and I'll take each.**
 
-First-contact resolution: fifty-six point three against a target of sixty. But
-the validation set's own labels cap it at sixty point zero, so the real gap is
-three point seven five points, not three point seven. Still a gap. Smaller than
-it looks.
+First-contact resolution: 56.3% against a target of 60%. And 60% is the most this validation set allows — its own labels cap first-contact resolution at 60.0%. So the target sits exactly at the ceiling, and I'm 3.75 points under the best score possible on this set. A real gap, but not the one it first looks like.
 
-Escalation: forty-three point eight against thirty. That's the floor I showed
-you in discovery. Unreachable by construction, known on day zero.
+Escalation: 43.8% against 30%. That's the floor I showed
+you in discovery. Unreachable by construction, known on day 0.
 
 And fairness. This one I want to spend proper time on."
 
 > **[SCREEN — §8.3]**
 
-"The largest gap is `asia_pacific`, thirty-eight points below its own label
+"The largest gap is `asia_pacific`, 38.1 points below its own label
 baseline, and it reproduces identically in both runs. My first instinct was to
 call that a finding.
 
-It isn't, and here's why. I'm testing eleven segments. Raw p-value zero point
-zero three nine — significant on its own. After Holm correction across eleven
-comparisons: **zero point four two four**. Nothing survives. The confidence
-interval is thirty-seven points wide, because that segment has twenty-one
-tickets.
+It isn't, and here's why. I'm testing 11 segments. Raw p-value 0.039 — significant on its own. After Holm correction across 11 comparisons: **0.424**. Nothing survives. The confidence
+interval is 37 points wide, because that segment has 21 tickets.
 
 So the correct statement is: this is **a lead, not a finding**. It's the thing I
-would investigate first with five hundred tickets instead of twenty-one. I had it
+would investigate first with 500 tickets instead of 21. I had it
 written up as a well-powered result in an earlier draft and my validator made me
 retract it — there's now a test in the suite that fails the build if that
-retracted phrase reappears in any document, because I'd had *nine* separate
-incidents of a correction reaching one document and not another.
+retracted phrase reappears in any document, because I'd had *9* separate incidents of a correction reaching one document and not another.
 
-**The scoreboard against the brief:** six targets met, three missed, one straddles
-the run-to-run band, and **four could not be measured at all** with the data
+**The scoreboard against the brief:** 6 targets met, 3 missed, 1 straddles
+the run-to-run band, and **4 could not be measured at all** with the data
 supplied — customer satisfaction, because there are no live customers; repeat
-contacts, because there are two same-customer same-intent pairs in five hundred
-tickets; hallucination rate, because the evaluation framework's own standard is
-fifty responses and two independent assessors; and availability, because that's an
+contacts, because there are 2 same-customer same-intent pairs in 500 tickets; hallucination rate, because the evaluation framework's own standard is
+50 responses and 2 independent assessors; and availability, because that's an
 uptime measure and I have no uptime.
 
 Saying which is which is the point. A target that was never measurable is a
@@ -381,30 +356,28 @@ flatter this result."
 
 > **[SCREEN — §8.5 risk register, then `docs/VALIDATOR.md`]**
 
-"Governance quickly. Eight risks in the register on screen, eleven in the full
+"Governance quickly. 8 risks in the register on screen, 11 in the full
 register with owners in the Governance Framework. An
-incident procedure — six steps, starting with the kill switch. Every decision
-logged against the ticket that produced it. Three layers on the deny list plus
-grounding, and fifty-six of eighty-seven security-and-compliance tickets are
+incident procedure — 6 steps, starting with the kill switch. Every decision
+logged against the ticket that produced it. 3 layers on the deny list plus grounding, and 56 of 87 security-and-compliance tickets are
 protected *structurally*, meaning no threshold change can expose them.
 
 And the residual harm I'll name out loud, because no automated control in this
 system catches it: **a correctly cited passage that doesn't actually apply to the
 customer's situation.** Every check I have says that response is fine. Only a
-human reading it knows it isn't. That's why proposal four on my next-steps list
+human reading it knows it isn't. That's why proposal 4 on my next-steps list
 is a continuous human review sample.
 
-An independent validator reviewed every phase of this. **Twelve reviews, seven
-blocked.** Some of what it caught:
+An independent validator reviewed every phase of this. **12 reviews, 7 blocked.** Some of what it caught:
 
 - I reported a gate run whose artifact turned out to be a **cache replay**, not a
   live run. Withdrawn, re-run cold, twice.
-- I reported **zero guardrail blocks** when four drafts had genuinely been
+- I reported **0 guardrail blocks** when 4 drafts had genuinely been
   withheld — the reporting path couldn't see them.
-- A draft consisting of the two characters `[1]` passed every guardrail I had.
+- A draft consisting of the 2 characters `[1]` passed every guardrail I had.
   There's now a substance check.
 - My README documented a command, `python -m src.api`, that **was never built**.
-  It survived twelve reviews because every reviewer read the code and none of them
+  It survived 12 reviews because every reviewer read the code and none of them
   ran the setup instructions literally. There are now tests that do.
 
 I'm telling you this because it's the honest version, and because most of those
@@ -419,38 +392,35 @@ impossible to repeat."
 
 > **[ON CAMERA]**
 
-"Five things I'd do next, in order.
+"5 things I'd do next, in order.
 
-One: **renegotiate the escalation target before launch**, not after. It's
+1: **renegotiate the escalation target before launch**, not after. It's
 unreachable without a governance breach, and pretending otherwise sets up a
 failure that's nobody's fault.
 
-Two: **investigate the Asia-Pacific gap** on the full five hundred tickets. Does
+2: **investigate the Asia-Pacific gap** on the full 500 tickets. Does
 the corpus just cover that segment's intents less well — retrieval scores per
 segment would answer that in an afternoon — or is the classifier worse on its
 phrasing?
 
-Three: **measure the fluency gap on live tickets.** Sofia on the support team
-believes non-fluent tickets get handled worse. My two splits disagree by
-twenty-three points and the ordering *inverts* between them. Nineteen tickets
-can't settle a question that consequential.
+3: **measure the fluency gap on live tickets.** Sofia on the support team
+believes non-fluent tickets get handled worse. My 2 splits disagree by 23.5 points and the ordering *inverts* between them. 19 tickets can't settle a question that consequential.
 
-Four: **the continuous human review sample**, for the harm I just described.
+4: **the continuous human review sample**, for the harm I just described.
 
-Five: **re-sort the queue by urgency.** High-urgency tickets currently have
-*worse* resolution — thirty-nine per cent against forty-eight — because the queue
+5: **re-sort the queue by urgency.** High-urgency tickets currently have
+*worse* resolution — 39.7% against 48.4% — because the queue
 is sorted by age. That's a finding this system doesn't act on yet, and it's
 probably the cheapest win in the whole report.
 
 If I had to leave you with one thing, it's this. The brief asked for a chatbot,
 and a chatbot would have demoed beautifully and been wrong. What the data asked
-for was a system that knows when to stop. On the held-back set: fifty-six per cent
-of tickets answered automatically, forty-four per cent handed to a person with the
-answer already attached, zero security tickets auto-answered in any run I've ever
+for was a system that knows when to stop. On the held-back set: 56% of tickets answered automatically, 44% handed to a person with the
+answer already attached, 0 security tickets auto-answered in any run I've ever
 made, and every one of those decisions written down with the ticket that produced
 it.
 
-Three targets missed — and I'd rather show you the three and explain them than
+3 targets missed — and I'd rather show you those 3 and explain them than
 show you a number I can't defend.
 
 Thanks for watching."
