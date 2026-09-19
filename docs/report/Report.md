@@ -325,12 +325,14 @@ Table 5 lists the alternatives considered and why each was rejected.
 | Automatically derived safety vocabulary (90.8% held-out vs 73.6%) | Contains `only`, `call`, `nobody` — generic words correlating with deny-list templates. A security control that fires on the word "only" is not defensible |
 | Whole-corpus prompting (the corpus is only ~8k tokens) | Would satisfy no retrieval criterion and produce no resolvable citations |
 | Section-level chunking | Measured: 92.7% any-hit against 95.2% for whole documents — both at floor 0.00, so the comparison is like for like — and more complex |
+| FastAPI service (the Brief's recommended interface) | None of the twelve acceptance criteria needs an HTTP endpoint. A9 asks for one documented command, a file in and a file out, and the Build Specification calls its own `python -m src.api` example "illustrative rather than prescriptive". The harness and `scripts/demo.py` show more than an endpoint would, and a service surface would have added code, tests and setup steps that carry no marks. A live integration is also out of scope (PRD WN-05) |
+| Prometheus and Grafana monitoring (the Brief's recommended monitoring) | Monitoring is not an acceptance criterion. Every figure a dashboard would show (volume by outcome, latency percentiles, guardrail activations, confidence distribution) is already computed by the harness report, which is what A10 requires. A dashboard would have been a second view of the same numbers, and a second place for them to disagree. Cut on day one (Stage 4 Sprint Plan, §5) |
 
 ---
 
 ## 6. Implementation
 
-513 tests, 92% statement-and-branch coverage (91.7%) over `src/` and `evaluation/`
+516 tests, 92% statement-and-branch coverage (91.7%) over `src/` and `evaluation/`
 (92% over `src/` alone), one command (`pytest`), green on a clean checkout
 without an API key.
 
