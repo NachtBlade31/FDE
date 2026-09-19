@@ -69,7 +69,7 @@ anything it reports before going further.
 pytest
 ```
 
-All 515 tests, no API key needed. **It takes about 15 minutes.** It hasn't hung:
+All 516 tests, no API key needed. **It takes about 15 minutes.** It hasn't hung:
 the retrieval tests build a real search index. For a one-minute check of the
 safety controls:
 
@@ -191,6 +191,7 @@ for `storage/KILL` relative to where it's started.
 | Every ticket escalates; the report says `DEGRADED` | No key, a bad key, or the provider can't be reached | Run `python scripts/check_env.py` |
 | A run stops with a 429 mentioning tokens per day | The daily cap is used up | Wait until 00:00 UTC |
 | `--only blocked` says *Skipped* | The dataset pack isn't next to this folder | See [Data](#data) |
+| A few `test_retrieve.py` tests fail with empty results (`assert []`, hit rate 0.0%) | An intermittent failure, seen once in four full runs; the cause is not yet known | Run `pytest tests/test_retrieve.py`. It passed every time it was run on its own |
 
 ## Data
 

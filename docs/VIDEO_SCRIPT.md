@@ -554,7 +554,8 @@ hypothesis is undetectable at this sample size (+5.3pt, p = 1.00, n=19).
 
 ## Engineering
 
-- **515 tests passing**; coverage 91.67% combined, 92.29% on `src/`
+- **516 tests passing**; coverage 91.67% combined, 92.29% on `src/` (coverage
+  measured at 515 tests, before the README guard test was added)
 - CI green; the clean-checkout rehearsal (A1) passes
 - Acceptance criteria: **A1** (clean-checkout rehearsal, D-43), **A5** (determinism
   via the content-addressed cache, D-28), **A9** (the unattended full-set run, both
