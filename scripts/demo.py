@@ -96,15 +96,17 @@ SCENARIOS = {
         "Expect: escalated. This is a security incident, and the deny-list is "
         "independent of how confident the classifier is.",
     ),
-    "ungrounded": (
-        "A ticket the documentation cannot answer",
+    "roadmap": (
+        "A roadmap question only a person should answer",
         _ticket(
             "DEMO-003",
             "It would be very useful to set spend caps per project rather than only "
             "for the whole organisation. Is that on the roadmap?",
         ),
-        "Expect: escalated. There is no article to ground an answer in, and "
-        "returning nothing is the correct output rather than a guess.",
+        "Expect: escalated. Feature requests always go to a person, and "
+        "'roadmap' is a term that requires human review. The documentation "
+        "cannot commit to what the product will do, so the system does not "
+        "try, however relevant the retrieved articles look.",
     ),
     "injection": (
         "A prompt-injection attempt",

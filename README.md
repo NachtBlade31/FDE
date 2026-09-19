@@ -84,7 +84,7 @@ python scripts/demo.py
 ```
 
 This runs six scenarios in order against the real model: a ticket answered, a
-ticket escalated, a question the documentation doesn't cover, a prompt-injection
+ticket escalated, a roadmap question only a person should answer, a prompt-injection
 attempt, a draft that a guardrail blocked, and the kill switch. To run just one:
 
 ```bash

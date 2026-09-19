@@ -125,12 +125,13 @@ decision D-03 in the decision log."
 
 ## 5:00–7:00 · The system
 
-> **[SCREEN — the architecture diagram in `docs/report/Report.md` §5]**
+> **[SCREEN — the pipeline diagram in the HTML version of this script.** Report §5
+> has only the one-line flow `ingest → classify → retrieve → route → generate → validate`.**]**
 
 "Six stages, built on LangGraph. Ingest, classify, retrieve, route, generate,
 validate.
 
-**Ingest** normalises four channels — email, chat, web form, API — into one
+**Ingest** normalises four channels — email, chat, docs comments, forum — into one
 ticket shape. It's forgiving about everything except the ticket ID, because a
 ticket without an identity can't be logged, and an unlogged ticket is a
 governance hole.
@@ -185,11 +186,13 @@ python scripts/demo.py --only success
 traffic hasn't gone up, and asks whether having three API keys shouldn't raise
 their limit." *(let it print)*
 
-"Intent classified, passages retrieved, and all four routing conditions pass —
-there's the margin, there's the relevance score, it's not on the deny list, and
-it's grounded — so it drafts an answer with citations. **Those bracketed numbers
-resolve to real chunk IDs.** That's `AUTO_RESPONDED`. A customer gets that in
-about two seconds instead of eight hours."
+"Classified as a rate-limit question, one article retrieved, and every check
+passes — kill switch, the three deny-list layers, grounded, margin. Look at the
+reason line: a margin of 0.85 against a threshold of 0.85. It clears by exactly
+nothing, and that's fine — a threshold is a line, not a comfort zone. So it drafts
+an answer, and **that `[1]` resolves to a real article, DOC-API-001** — the model
+cited a position, and the code filled in the document. That's `AUTO_RESPONDED`. A
+customer gets that in about two seconds instead of eight hours."
 
 ### 8:45 — A ticket that must never be answered automatically
 
@@ -202,21 +205,23 @@ production account, and they're seeing activity they can't explain." *(point at
 the output)*
 
 "That's a security incident, and it goes straight to a person. Look at *why*:
-it's not 'the model was unsure'. The deny list is independent of how confident
+it's not 'the model was unsure' — it's classified at **0.99 confidence**. The deny list is independent of how confident
 the classifier is — it doesn't matter how sure the system is, a security incident
 is never answered automatically. The reason is recorded, and the person picking
 it up gets the ticket with the relevant article already attached."
 
-### 9:30 — A question the documentation doesn't cover
+### 9:30 — A roadmap question only a person should answer
 
 ```bash
-python scripts/demo.py --only ungrounded
+python scripts/demo.py --only roadmap
 ```
 
 "Third: a customer asking whether per-project spend caps are on the roadmap.
-There's no article that answers that. So the system returns nothing and escalates
-— **no answer is the correct output here, not a guess.** That's the relevance
-floor doing its job."
+Look at the checks: it *did* find two articles that look relevant, and it's
+confident about what the ticket is. It escalates anyway. Feature requests always
+go to a person, and 'roadmap' is a word that needs human review, because the
+documentation can't promise what the product will do next. **A plausible answer
+isn't the same as one the company can stand behind.**"
 
 ### 10:10 — Prompt injection
 
@@ -254,9 +259,9 @@ four that my gate run on the tenth of September blocked. I'm not staging this
 with an invented ticket, because a guardrail block needs a draft the model really
 wrote and the validator really refused.
 
-All four routing conditions pass. The model writes an answer. And then the
-grounding guardrail refuses to release it, because the citations in that draft
-don't resolve to the passages that were actually retrieved. Final state:
+Every routing check passes — six green lines. The model writes an answer. And
+then the grounding guardrail refuses to release it: the draft doesn't carry a
+single citation that resolves to a passage that was actually retrieved. Final state:
 `ESCALATED_AFTER_BLOCK`. **The draft is withheld entirely. Not edited, not
 redacted — withheld**, and the input is recorded.
 
