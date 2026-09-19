@@ -6,6 +6,24 @@ September 2026
 
 ---
 
+## Abbreviations
+
+| Abbreviation | Meaning |
+|---|---|
+| A1–A12 | The twelve pass/fail acceptance criteria of the Build Specification |
+| API | Application programming interface |
+| AS-nn | An assumption registered in the PRD before any code was written |
+| D-nn | A decision in the decision record (Appendix G) |
+| ECE | Expected calibration error |
+| FCR | First-contact resolution |
+| FR-nn | A functional requirement in the PRD |
+| HTTP | Hypertext Transfer Protocol |
+| k-NN | k-nearest-neighbour classifier |
+| p95 | 95th percentile |
+| PRD | Product requirements document (Appendix B) |
+| R-nn | A risk in the risk register (Table 10, Appendix F) |
+| WN-nn | A "will not" item: scope the PRD deliberately excludes |
+
 ## 1. Executive summary
 
 CloudServe Solutions asked for a chatbot. Their support function receives over
@@ -77,7 +95,7 @@ target and explain it.
 
 ## 2. The problem
 
-CloudServe asked for a chatbot. I spent the first day trying to work out whether
+CloudServe asked for a chatbot (Forward Deployed AI Engineering, 2026e). I spent the first day trying to work out whether
 that was the right thing to build, and I don't think it is — not because a chatbot
 is a bad idea, but because it answers a question nobody at CloudServe actually
 asked.
@@ -150,7 +168,7 @@ auto-answered.
 
 ## 3. Discovery findings
 
-Five stakeholder interviews and 580 labelled tickets. Every figure below was
+Five stakeholder interviews (Forward Deployed AI Engineering, 2026f) and 580 labelled tickets (Forward Deployed AI Engineering, 2026b). Every figure below was
 computed from the data rather than taken from the pack's summary tables; the
 scripts are in `scripts/` and the saved outputs in `evaluation/results/`.
 
@@ -241,7 +259,7 @@ Twenty-five functional and eight non-functional requirements, each traced to a
 numbered discovery finding. PRD v1.0 was written on day one, **before any code**,
 specifically so the compulsory revision in §9 would have a genuine trigger.
 
-Table 3 shows selected requirements and the evidence each traces to. The Build Specification's twelve pass/fail acceptance criteria are referred to as A1–A12 throughout; A9, the one the assessment turns on, is a single documented command that processes a whole ticket file unattended.
+Table 3 shows selected requirements and the evidence each traces to. The Build Specification's twelve pass/fail acceptance criteria (Forward Deployed AI Engineering, 2026a) are referred to as A1–A12 throughout; A9, the one the assessment turns on, is a single documented command that processes a whole ticket file unattended.
 
 *Table 3 — Selected functional requirements and their discovery evidence.*
 
@@ -266,7 +284,7 @@ that are implemented and tested but untagged in source.
 
 ## 5. Architecture and design
 
-Six components in sequence, built as a LangGraph state machine:
+Six components in sequence, built as a LangGraph state machine (LangChain, 2025). Retrieval and generation follow the retrieval-augmented generation pattern (Lewis et al., 2020), with routing and validation between them:
 
 ```
 ingest → classify → retrieve → route → generate → validate
@@ -376,8 +394,7 @@ disagree.
 **No hidden set was supplied, so none was run.** The pack's `05_Datasets/` holds
 the development, validation, documentation and ground-truth data files, together
 with the dataset guide and the interview transcripts; the hidden
-set is processed by the assessors on their own machine. The Submission Guide's
-checklist asks that the hidden set be used once and that the report say when. The
+set is processed by the assessors on their own machine. The Submission Guide's checklist (Forward Deployed AI Engineering, 2026g) asks that the hidden set be used once and that the report say when. The
 honest answer is that it could not be used here. The closest held-back split was
 validation, and it was used six times rather than once — every use is listed
 below.
@@ -405,7 +422,7 @@ produced under.
 
 Table 6 gives the full results for both runs.
 
-*Table 6 — validation set, 80 tickets. Two independent cold runs, both committed:
+*Table 6 — Evaluation results against every target, validation set (80 tickets). Two independent cold runs, both committed:
 `evaluation/results/2026-09-10-gate-run-2/` (headline) and `-1/`. Neither
 degraded: `degraded: false`, `classification_fallback_rate: 0.0`,
 `cache_replay: false`, no quota exhaustion.*
@@ -479,8 +496,7 @@ weight them accordingly, and the honest summary is: **one verifiable run passes;
 the condition failed in at least one unverifiable run.**
 
 The cause is specific and is visible in the committed artifact: the model is
-overconfident in the 0.80–1.00 band, where 99 of 100 predictions land, so ECE is
-dominated by a single bin and moves several points between runs on a handful of
+overconfident in the 0.80–1.00 band, where 99 of 100 predictions land, so expected calibration error (ECE; Naeini, Cooper and Hauskrecht, 2015; Guo et al., 2017), which averages the gap between confidence and accuracy over confidence bins, is dominated by a single bin and moves several points between runs on a handful of
 tickets.
 
 This failure is also the justification for the architecture. Confidence fails
@@ -531,7 +547,7 @@ activation count was structurally zero rather than observed to be zero (decision
   fabrication.
 - **Satisfaction is not measured.** No live customers exist. Not estimated.
 - **Response time is processing latency, not wall-clock human response.** The
-  schema has no `replied_at` field, so the Evaluation Framework's own sample code
+  schema has no `replied_at` field, so the Evaluation Framework's own sample code (Forward Deployed AI Engineering, 2026c)
   cannot be run. Comparing a sub-second pipeline to an 8-hour human queue needs
   that caveat to be honest.
 - **Hallucination rate has not been established** to the Framework's standard of
@@ -543,7 +559,7 @@ activation count was structurally zero rather than observed to be zero (decision
 
 ### 8.1 Decision logging
 
-Every stage writes the Governance Framework's minimum record, including
+Every stage writes the minimum record set by the Governance Framework (Forward Deployed AI Engineering, 2026d), including
 `prompt_version` and `requirement_ids` — the two fields that answer *"was this
 behaviour intended?"* after an incident. Reconciliation is by **identity in both
 directions**, scoped to a run.
@@ -591,7 +607,7 @@ themselves** already vary by more than the five-point condition (Table 8):
 Three of four segments exceed the condition before any system exists. The
 ordering also inverts between splits. The audit therefore reports **system rate
 minus the same split's label baseline**, pre-registered before results were
-known. Segments below ten tickets carry a Wilson interval and are labelled as
+known. Segments below ten tickets carry a Wilson score interval (Wilson, 1927) and are labelled as
 unable to support inference — a caveat that, until review, printed only when no
 outcomes were supplied, so it was suppressed on exactly the delta rows most
 likely to be quoted (`enterprise`, n=8; `latin_america`, n=7). It is now
@@ -625,13 +641,11 @@ stated in percentage points, and as measured it is missed. That is not the same
 claim as "this segment is treated unfairly", and the table above is deliberately
 built so the two cannot be confused:
 
-- The system's decision and the label are made on **the same ticket**, so the two
-  rates are paired. Only the discordant tickets carry information — for
+- The system's decision and the label are made on **the same ticket**, so the two rates are paired and are compared with McNemar's exact test (McNemar, 1947). Only the discordant tickets carry information — for
   `business`, 30 tickets reduce to 5 disagreements each way, which is why
   **+3.3pt there is not evidence of agreement** any more than it is of bias.
 - `asia_pacific` is the only segment with a raw p below 0.05 (0.039, from a 10/2
-  split). **Eleven segments were tested at once.** After Holm correction it is
-  0.424, and **nothing survives at 0.05.** Quoting the smallest of eleven p-values
+  split). **Eleven segments were tested at once.** After Holm correction (Holm, 1979) it is 0.424, and **nothing survives at 0.05.** Quoting the smallest of eleven p-values
   as a finding is precisely how a table like this manufactures one.
 - So the honest reading of `europe +12.0` and `north_america +14.8` is *not* that
   those regions are favoured. p = 0.45 and 0.29. They are noise-consistent.
@@ -959,6 +973,36 @@ All figures were independently recomputed from the raw data before being
 reported. Where a claim could not be verified it is labelled as unverified.
 
 ---
+
+## References
+
+Forward Deployed AI Engineering (2026a) *Capstone project: build specification*. Unpublished course material.
+
+Forward Deployed AI Engineering (2026b) *Capstone project: dataset guide*. Unpublished course material.
+
+Forward Deployed AI Engineering (2026c) *Capstone project: evaluation framework*. Unpublished course material.
+
+Forward Deployed AI Engineering (2026d) *Capstone project: governance framework*. Unpublished course material.
+
+Forward Deployed AI Engineering (2026e) *Capstone project: project brief*. Unpublished course material.
+
+Forward Deployed AI Engineering (2026f) *Capstone project: stakeholder interviews*. Unpublished course material.
+
+Forward Deployed AI Engineering (2026g) *Capstone project: submission guide*. Unpublished course material.
+
+Guo, C., Pleiss, G., Sun, Y. and Weinberger, K.Q. (2017) 'On calibration of modern neural networks', in *Proceedings of the 34th International Conference on Machine Learning*. PMLR, 70, pp. 1321–1330.
+
+Holm, S. (1979) 'A simple sequentially rejective multiple test procedure', *Scandinavian Journal of Statistics*, 6(2), pp. 65–70.
+
+LangChain (2025) *LangGraph* (Version 0.6.7) [Computer program]. Available at: https://github.com/langchain-ai/langgraph (Accessed: 4 September 2026).
+
+Lewis, P. et al. (2020) 'Retrieval-augmented generation for knowledge-intensive NLP tasks', in *Advances in Neural Information Processing Systems 33*. Curran Associates, pp. 9459–9474.
+
+McNemar, Q. (1947) 'Note on the sampling error of the difference between correlated proportions or percentages', *Psychometrika*, 12(2), pp. 153–157.
+
+Naeini, M.P., Cooper, G.F. and Hauskrecht, M. (2015) 'Obtaining well calibrated probabilities using Bayesian binning', in *Proceedings of the Twenty-Ninth AAAI Conference on Artificial Intelligence*. AAAI Press, pp. 2901–2907.
+
+Wilson, E.B. (1927) 'Probable inference, the law of succession, and statistical inference', *Journal of the American Statistical Association*, 22(158), pp. 209–212.
 
 ## Appendices
 
